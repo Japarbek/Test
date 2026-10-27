@@ -90,7 +90,7 @@ const SCHEMA = {
     ['image', 'Изображение (URL)'], ['sort', 'Порядок']
   ],
   [SHEETS.PROMO]: [
-    ['code', 'Код'], ['active', 'Активен'], ['type', 'Тип (%/₽)'], ['value', 'Значение'],
+    ['code', 'Код'], ['active', 'Активен'], ['type', 'Тип (%/сом)'], ['value', 'Значение'],
     ['minOrder', 'Мин. сумма'], ['validFrom', 'Действует с'], ['validTo', 'Действует до'],
     ['maxUses', 'Лимит использований'], ['used', 'Использован раз'], ['description', 'Описание']
   ],
@@ -132,20 +132,20 @@ const DEFAULT_SETTINGS = [
   ['companyName', 'Чистый Дом', 'Название компании'],
   ['slogan', 'Мы убираем — вы отдыхаете', 'Слоган на главной'],
   ['subSlogan', 'Профессиональная уборка квартир, домов и офисов. Проверенные клинеры, экосредства и фиксированная цена.', 'Подзаголовок на главной'],
-  ['phone', '+7 (900) 000-00-00', 'Телефон компании'],
+  ['phone', '+996 (700) 123-456', 'Телефон компании'],
   ['email', 'hello@example.com', 'Email компании'],
-  ['address', 'Москва, ул. Тверская, 1', 'Адрес офиса'],
-  ['mapQuery', 'Москва, ул. Тверская, 1', 'Адрес для Google Maps'],
+  ['address', 'Бишкек, пр. Чуй, 155', 'Адрес офиса'],
+  ['mapQuery', 'Бишкек, проспект Чуй, 155', 'Адрес для Google Maps'],
   ['workHoursText', 'Ежедневно 8:00–21:00', 'Часы работы (текст)'],
-  ['currency', '₽', 'Символ валюты'],
+  ['currency', 'сом', 'Валюта (подпись после суммы)'],
   ['adminEmail', '', 'Email для уведомлений о новых заказах'],
   ['adminEmails', '', 'Google-аккаунты с доступом к CRM без пароля (через запятую)'],
   ['coefFlat', '1', 'Коэффициент цены: квартира'],
   ['coefHouse', '1.3', 'Коэффициент цены: дом'],
   ['coefOffice', '1.2', 'Коэффициент цены: офис'],
   ['petsSurcharge', '300', 'Надбавка за домашних животных'],
-  ['noElevatorPerFloor', '50', 'Надбавка за этаж без лифта (начиная со 2-го)'],
-  ['minOrder', '2500', 'Минимальная сумма заказа'],
+  ['noElevatorPerFloor', '30', 'Надбавка за этаж без лифта (начиная со 2-го)'],
+  ['minOrder', '2000', 'Минимальная сумма заказа'],
   ['workStart', '08:00', 'Начало рабочего дня (первый слот)'],
   ['workEnd', '21:00', 'Конец рабочего дня (уборка должна закончиться до)'],
   ['slotStep', '60', 'Шаг слотов в календаре, минут'],
@@ -154,7 +154,7 @@ const DEFAULT_SETTINGS = [
   ['minLeadHours', '3', 'Минимум часов от текущего момента до начала уборки'],
   ['cancelHours', '12', 'За сколько часов клиент может сам отменить/перенести заказ'],
   ['referralDiscount', '10', 'Скидка другу по реферальному коду, % (на первый заказ)'],
-  ['referralBonus', '500', 'Бонус пригласившему после первого выполненного заказа друга'],
+  ['referralBonus', '300', 'Бонус пригласившему после первого выполненного заказа друга'],
   ['bonusPercent', '5', 'Кэшбэк бонусами от суммы выполненного заказа, %'],
   ['maxBonusPercent', '30', 'Максимум оплаты бонусами, % от заказа'],
   ['statOrdersBase', '1200', 'Счётчик «выполненных заказов»: стартовое значение (+ реальные из базы)'],
@@ -163,8 +163,8 @@ const DEFAULT_SETTINGS = [
   ['reactivationDays', '60', 'Через сколько дней без заказов клиент попадает в реактивацию'],
   ['instagram', 'https://instagram.com/', 'Instagram'],
   ['telegram', 'https://t.me/', 'Telegram'],
-  ['whatsapp', 'https://wa.me/79000000000', 'WhatsApp'],
-  ['vk', 'https://vk.com/', 'ВКонтакте'],
+  ['whatsapp', 'https://wa.me/996700123456', 'WhatsApp'],
+  ['vk', '', 'ВКонтакте (пусто — не показывать)'],
   ['googleReviewsUrl', 'https://www.google.com/maps', 'Ссылка на отзывы в Google Maps']
 ];
 
@@ -188,6 +188,7 @@ const TOKEN_TTL = 21600; // 6 часов — максимум для CacheServic
  * чтобы страница открывалась без дополнительного запроса к серверу.
  */
 function doGet(e) {
+  try { migrateToKyrgyzstan_(); } catch (err) { console.warn('KG migration: ' + err); }
   const params = (e && e.parameter) || {};
   const isAdmin = params.page === 'admin';
   const tpl = HtmlService.createTemplateFromFile(isAdmin ? 'Admin' : 'Client');
@@ -198,6 +199,29 @@ function doGet(e) {
     .setTitle(isAdmin ? 'CRM · ' + settings.companyName : settings.companyName + ' — клининг')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Разовый переход на стартовые данные для Кыргызстана (сом, Бишкек, +996)
+ * в таблице, созданной прежней версией setup() с рублями.
+ * Срабатывает один раз и только пока в базе нет ни заказов, ни клиентов,
+ * поэтому рабочие данные не затрагивает. Справочные листы пересоздаются.
+ */
+function migrateToKyrgyzstan_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('KG_DEFAULTS')) return;
+  withLock_(function () {
+    if (props.getProperty('KG_DEFAULTS')) return;
+    if (getSettings_().currency === '₽' && !readAll_(SHEETS.ORDERS).length && !readAll_(SHEETS.CLIENTS).length) {
+      const ss = ss_();
+      [SHEETS.SETTINGS, SHEETS.SERVICES, SHEETS.EMPLOYEES, SHEETS.PROMO, SHEETS.REVIEWS, SHEETS.CONTENT].forEach(function (n) {
+        const sh = ss.getSheetByName(n);
+        if (sh) ss.deleteSheet(sh);
+      });
+      setup();
+    }
+    props.setProperty('KG_DEFAULTS', '1');
+  });
 }
 
 /** JSON, безопасный для вставки внутрь <script> */
@@ -233,6 +257,7 @@ function sheet_(name) {
 function headerKeys_(name, headerRow) {
   const map = {};
   (SCHEMA[name] || []).forEach(function (p) { map[p[1]] = p[0]; map[p[0]] = p[0]; });
+  map['Тип (%/₽)'] = map['Тип (%/₽)'] || (name === SHEETS.PROMO ? 'type' : ''); // заголовок прежних версий
   return headerRow.map(function (h) { return map[String(h).trim()] || ''; });
 }
 
@@ -358,7 +383,9 @@ function fromMin_(m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' 
 function orderStart_(o) { const d = parseDate_(o.date); const m = toMin_(o.time); d.setHours(Math.floor(m / 60), m % 60, 0, 0); return d; }
 function digits_(s) {
   let d = String(s || '').replace(/\D/g, '');
-  if (d.length === 11 && d.charAt(0) === '8') d = '7' + d.slice(1);
+  if (d.length === 10 && d.charAt(0) === '0') d = '996' + d.slice(1); // местный формат КР: 0700 123 456
+  else if (d.length === 9) d = '996' + d;                             // без кода страны: 700 123 456
+  else if (d.length === 11 && d.charAt(0) === '8') d = '7' + d.slice(1); // РФ/КЗ: 8 900 ...
   return d;
 }
 function normPhone_(s) { const d = digits_(s); return d ? '+' + d : ''; }
@@ -373,7 +400,7 @@ function sha256_(s) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)
     .map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
 }
-function money_(v, st) { return Math.round(num_(v)).toLocaleString('ru-RU') + ' ' + ((st && st.currency) || '₽'); }
+function money_(v, st) { return Math.round(num_(v)).toLocaleString('ru-RU') + ' ' + ((st && st.currency) || 'сом'); }
 function esc_(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
 /** Ссылку вида drive.google.com/file/d/ID/... превращаем в прямую ссылку на изображение */
@@ -632,7 +659,7 @@ function promoError_(promo, subtotal) {
   if (promo.validFrom && String(promo.validFrom) > t) return 'Промокод ещё не действует';
   if (promo.validTo && String(promo.validTo) < t) return 'Срок действия промокода истёк';
   if (num_(promo.maxUses) > 0 && num_(promo.used) >= num_(promo.maxUses)) return 'Лимит использований промокода исчерпан';
-  if (num_(promo.minOrder) > subtotal) return 'Промокод действует от ' + num_(promo.minOrder) + ' ₽';
+  if (num_(promo.minOrder) > subtotal) return 'Промокод действует от ' + money_(promo.minOrder, getSettings_());
   return '';
 }
 
@@ -1595,52 +1622,52 @@ function seed_(name) {
   rows[SHEETS.SERVICES] = [
     { id: 'S1', active: true, kind: KIND_MAIN, name: 'Стандартная уборка', icon: '✨', short: 'Поддерживающая уборка для регулярной чистоты',
       description: 'Идеально, чтобы поддерживать порядок каждую неделю: пыль, полы, кухня и санузел.',
-      basePrice: 1900, perRoom: 700, unit: 'заказ', baseHours: 1.5, perRoomHours: 0.7,
+      basePrice: 1500, perRoom: 500, unit: 'заказ', baseHours: 1.5, perRoomHours: 0.7,
       includes: 'Влажная уборка полов и плинтусов; Удаление пыли с доступных поверхностей; Уборка кухонных фасадов и столешниц; Мытьё плиты снаружи; Уборка санузла и ванной; Чистка зеркал; Вынос мусора; Заправка кровати',
       paidExtras: 'Мытьё окон; Чистка духовки и холодильника внутри; Глажка белья; Уборка балкона',
       excludes: 'Мытьё стен и потолков; Удаление плесени; Химчистка мебели', sort: 1 },
     { id: 'S2', active: true, kind: KIND_MAIN, name: 'Генеральная уборка', icon: '🧽', short: 'Глубокая уборка каждого уголка',
       description: 'Тщательная уборка всех поверхностей, включая труднодоступные места, мебель внутри и снаружи.',
-      basePrice: 3900, perRoom: 1500, unit: 'заказ', baseHours: 3, perRoomHours: 1.5,
+      basePrice: 3000, perRoom: 1000, unit: 'заказ', baseHours: 3, perRoomHours: 1.5,
       includes: 'Всё из стандартной уборки; Мытьё мебели внутри и снаружи; Чистка радиаторов и вентиляционных решёток; Мытьё дверей и выключателей; Удаление известкового налёта; Мытьё кухонной техники снаружи; Уборка под мебелью; Мытьё люстр и светильников',
       paidExtras: 'Мытьё окон; Чистка духовки внутри; Химчистка дивана; Мытьё балкона',
       excludes: 'Вынос строительного мусора; Мытьё фасадов', sort: 2 },
     { id: 'S3', active: true, kind: KIND_MAIN, name: 'Уборка после ремонта', icon: '🛠️', short: 'Удалим строительную пыль и следы ремонта',
       description: 'Профессиональные средства и оборудование для удаления строительной пыли, краски, затирки и клея.',
-      basePrice: 5900, perRoom: 2200, unit: 'заказ', baseHours: 4, perRoomHours: 2,
+      basePrice: 4500, perRoom: 1500, unit: 'заказ', baseHours: 4, perRoomHours: 2,
       includes: 'Удаление строительной пыли со всех поверхностей; Отмывание следов краски, клея, затирки; Мытьё окон и рам; Мытьё радиаторов и труб; Чистка сантехники от загрязнений; Мытьё дверей, плинтусов, розеток; Пылесос промышленным пылесосом',
       paidExtras: 'Вывоз строительного мусора; Мытьё фасадного остекления; Удаление цементного налёта со стен',
       excludes: 'Демонтаж; Высотные работы выше 3 м', sort: 3 },
-    { id: 'X1', active: true, kind: KIND_EXTRA, name: 'Мытьё окон', icon: '🪟', short: 'Створка с двух сторон', basePrice: 400, unit: 'створка', baseHours: 0.25, sort: 10 },
-    { id: 'X2', active: true, kind: KIND_EXTRA, name: 'Глажка белья', icon: '👕', short: 'Час работы', basePrice: 700, unit: 'час', baseHours: 1, sort: 11 },
-    { id: 'X3', active: true, kind: KIND_EXTRA, name: 'Холодильник внутри', icon: '🧊', short: 'Мытьё полок и камеры', basePrice: 900, unit: 'шт', baseHours: 0.5, sort: 12 },
-    { id: 'X4', active: true, kind: KIND_EXTRA, name: 'Духовка внутри', icon: '🔥', short: 'Удаление нагара', basePrice: 900, unit: 'шт', baseHours: 0.5, sort: 13 },
-    { id: 'X5', active: true, kind: KIND_EXTRA, name: 'Уборка балкона', icon: '🌿', short: 'Пол, подоконник, остекление изнутри', basePrice: 1200, unit: 'шт', baseHours: 1, sort: 14 },
-    { id: 'X6', active: true, kind: KIND_EXTRA, name: 'Кухонные шкафы внутри', icon: '🗄️', short: 'Протрём каждую полку', basePrice: 800, unit: 'комплект', baseHours: 0.7, sort: 15 },
-    { id: 'X7', active: true, kind: KIND_EXTRA, name: 'Микроволновка внутри', icon: '📦', short: 'Отмоем от жира', basePrice: 400, unit: 'шт', baseHours: 0.25, sort: 16 }
+    { id: 'X1', active: true, kind: KIND_EXTRA, name: 'Мытьё окон', icon: '🪟', short: 'Створка с двух сторон', basePrice: 200, unit: 'створка', baseHours: 0.25, sort: 10 },
+    { id: 'X2', active: true, kind: KIND_EXTRA, name: 'Глажка белья', icon: '👕', short: 'Час работы', basePrice: 400, unit: 'час', baseHours: 1, sort: 11 },
+    { id: 'X3', active: true, kind: KIND_EXTRA, name: 'Холодильник внутри', icon: '🧊', short: 'Мытьё полок и камеры', basePrice: 500, unit: 'шт', baseHours: 0.5, sort: 12 },
+    { id: 'X4', active: true, kind: KIND_EXTRA, name: 'Духовка внутри', icon: '🔥', short: 'Удаление нагара', basePrice: 500, unit: 'шт', baseHours: 0.5, sort: 13 },
+    { id: 'X5', active: true, kind: KIND_EXTRA, name: 'Уборка балкона', icon: '🌿', short: 'Пол, подоконник, остекление изнутри', basePrice: 800, unit: 'шт', baseHours: 1, sort: 14 },
+    { id: 'X6', active: true, kind: KIND_EXTRA, name: 'Кухонные шкафы внутри', icon: '🗄️', short: 'Протрём каждую полку', basePrice: 500, unit: 'комплект', baseHours: 0.7, sort: 15 },
+    { id: 'X7', active: true, kind: KIND_EXTRA, name: 'Микроволновка внутри', icon: '📦', short: 'Отмоем от жира', basePrice: 300, unit: 'шт', baseHours: 0.25, sort: 16 }
   ];
 
   rows[SHEETS.EMPLOYEES] = [
-    { id: 'E1', active: true, name: 'Анна Смирнова', role: 'Старший клинер', phone: '+79000000001', bio: '6 лет опыта, отвечает за качество', workDays: '1,2,3,4,5', workFrom: '08:00', workTo: '20:00', showOnSite: true },
-    { id: 'E2', active: true, name: 'Ольга Петрова', role: 'Клинер', phone: '+79000000002', bio: 'Специалист по генеральной уборке', workDays: '1,2,3,4,6', workFrom: '08:00', workTo: '20:00', showOnSite: true },
-    { id: 'E3', active: true, name: 'Игорь Волков', role: 'Клинер', phone: '+79000000003', bio: 'Уборка после ремонта, работа с техникой', workDays: '2,3,4,5,6', workFrom: '09:00', workTo: '21:00', showOnSite: true },
-    { id: 'E4', active: true, name: 'Марина Ким', role: 'Менеджер по качеству', phone: '+79000000004', bio: 'Проверяет каждый заказ и собирает отзывы', workDays: '1,2,3,4,5', workFrom: '09:00', workTo: '18:00', showOnSite: true }
+    { id: 'E1', active: true, name: 'Айгерим Токтогулова', role: 'Старший клинер', phone: '+996700000001', bio: '6 лет опыта, отвечает за качество', workDays: '1,2,3,4,5', workFrom: '08:00', workTo: '20:00', showOnSite: true },
+    { id: 'E2', active: true, name: 'Бермет Жумабекова', role: 'Клинер', phone: '+996700000002', bio: 'Специалист по генеральной уборке', workDays: '1,2,3,4,6', workFrom: '08:00', workTo: '20:00', showOnSite: true },
+    { id: 'E3', active: true, name: 'Нурлан Асанов', role: 'Клинер', phone: '+996700000003', bio: 'Уборка после ремонта, работа с техникой', workDays: '2,3,4,5,6', workFrom: '09:00', workTo: '21:00', showOnSite: true },
+    { id: 'E4', active: true, name: 'Айпери Исакова', role: 'Менеджер по качеству', phone: '+996700000004', bio: 'Проверяет каждый заказ и собирает отзывы', workDays: '1,2,3,4,5', workFrom: '09:00', workTo: '18:00', showOnSite: true }
   ];
 
   // Примеры отзывов. Замените их реальными отзывами из Google Maps (источник «Google»).
   rows[SHEETS.REVIEWS] = [
-    ['Екатерина В.', 5, 'Заказывала генеральную уборку перед праздниками — квартира сияет! Ребята приехали вовремя, всё аккуратно, даже за холодильником помыли.'],
-    ['Дмитрий К.', 5, 'Пользуюсь уже полгода раз в неделю. Стабильное качество, удобная запись, вежливые клинеры.'],
-    ['Алина М.', 5, 'После ремонта думала, что неделю буду отмывать пыль. Справились за день, результат отличный.'],
-    ['Сергей П.', 4, 'Хорошая уборка офиса, всё по чек-листу. Немного задержались, но предупредили заранее.'],
-    ['Наталья Р.', 5, 'Очень понравилось, что цена фиксированная и известна заранее. Без сюрпризов.'],
-    ['Михаил Т.', 5, 'Взяли сертификат маме в подарок — она в восторге. Спасибо за внимание к деталям!']
+    ['Жылдыз Т.', 5, 'Заказывала генеральную уборку перед праздниками — квартира сияет! Ребята приехали вовремя, всё аккуратно, даже за холодильником помыли.'],
+    ['Эрлан М.', 5, 'Пользуюсь уже полгода раз в неделю. Стабильное качество, удобная запись, вежливые клинеры.'],
+    ['Гульнара С.', 5, 'После ремонта думала, что неделю буду отмывать пыль. Справились за день, результат отличный.'],
+    ['Бакыт А.', 4, 'Хорошая уборка офиса, всё по чек-листу. Немного задержались, но предупредили заранее.'],
+    ['Айжан К.', 5, 'Очень понравилось, что цена фиксированная и известна заранее. Без сюрпризов.'],
+    ['Тимур О.', 5, 'Взяли сертификат маме в подарок — она в восторге. Спасибо за внимание к деталям!']
   ].map(function (r, i) { return { id: 'RV' + (i + 1), date: addDays_(today_(), -(i * 9 + 3)), author: r[0], rating: r[1], text: r[2], source: 'Google', published: true }; });
   PropertiesService.getScriptProperties().setProperty('SEQ_RV', '6');
 
   rows[SHEETS.PROMO] = [
     { code: 'WELCOME10', active: true, type: '%', value: 10, minOrder: 0, validFrom: '', validTo: '', maxUses: 0, used: 0, description: 'Скидка 10% на первый заказ' },
-    { code: 'CLEAN500', active: true, type: '₽', value: 500, minOrder: 5000, validFrom: '', validTo: addDays_(today_(), 90), maxUses: 100, used: 0, description: '500 ₽ при заказе от 5000 ₽' }
+    { code: 'CLEAN300', active: true, type: 'сом', value: 300, minOrder: 4000, validFrom: '', validTo: addDays_(today_(), 90), maxUses: 100, used: 0, description: '300 сом при заказе от 4000 сом' }
   ];
 
   const c = [];
@@ -1649,7 +1676,7 @@ function seed_(name) {
   add('step', 'Подтверждение', 'Менеджер подтвердит время и назначит проверенного клинера');
   add('step', 'Уборка', 'Приезжаем со своими средствами и инвентарём точно в срок');
   add('step', 'Отчёт', 'Присылаем фотоотчёт, вы оцениваете работу в личном кабинете');
-  ['Центральный', 'Северный', 'Северо-Восточный', 'Восточный', 'Юго-Восточный', 'Южный', 'Юго-Западный', 'Западный', 'Северо-Западный', 'Ближнее Подмосковье (до 15 км от МКАД)']
+  ['Ленинский район', 'Октябрьский район', 'Первомайский район', 'Свердловский район', 'Джал', 'Асанбай', 'Восток-5', 'Тунгуч', 'Кок-Жар', 'Арча-Бешик', 'Пригородные сёла Чуйской области (до 15 км)']
     .forEach(function (z) { add('zone', z, ''); });
   add('faq', 'Нужно ли мне быть дома во время уборки?', 'Не обязательно. Можно оставить ключи консьержу или встретить клинера и уйти по делам — многие клиенты так и делают.');
   add('faq', 'Ваши средства безопасны для детей и животных?', 'Да, мы используем сертифицированные гипоаллергенные экосредства. Если у вас есть особые пожелания — напишите в комментарии.');
@@ -1668,9 +1695,11 @@ function seed_(name) {
 
 /** Генерация демо-заказов и клиентов, чтобы посмотреть дашборд и отчёты */
 function seedDemoOrders() {
-  const first = ['Анна', 'Иван', 'Мария', 'Пётр', 'Елена', 'Алексей', 'Ольга', 'Николай', 'Татьяна', 'Андрей', 'Юлия', 'Сергей', 'Ксения', 'Павел', 'Виктория'];
-  const last = ['Иванова', 'Смирнов', 'Кузнецова', 'Попов', 'Соколова', 'Лебедев', 'Козлова', 'Новиков', 'Морозова', 'Волков'];
-  const streets = ['ул. Ленина', 'пр. Мира', 'ул. Гагарина', 'ул. Садовая', 'Новый Арбат', 'ул. Профсоюзная'];
+  // Пары «имя, фамилия» подобраны с учётом рода
+  const people = [['Айгуль', 'Садыкова'], ['Азамат', 'Касымов'], ['Нургуль', 'Абдыкадырова'], ['Бакыт', 'Осмонов'], ['Чолпон', 'Бейшенова'],
+    ['Эрмек', 'Токтосунов'], ['Асель', 'Мамытова'], ['Улан', 'Жээнбеков'], ['Динара', 'Алиева'], ['Тилек', 'Сатыбалдиев'],
+    ['Айдай', 'Курманбекова'], ['Мирлан', 'Эсенгулов'], ['Назира', 'Орозбаева'], ['Канат', 'Абдраимов'], ['Сезим', 'Шаршеева']];
+  const streets = ['ул. Токтогула', 'пр. Манаса', 'ул. Киевская', 'пр. Чуй', 'ул. Ахунбаева', 'мкр. Джал', 'ул. Исанова'];
   const reasons = ['Изменились планы', 'Нашли другого исполнителя', 'Заболел', 'Перенос на другую дату', 'Дорого'];
   const svc = readAll_(SHEETS.SERVICES).filter(function (s) { return s.kind === KIND_MAIN; });
   const extras = readAll_(SHEETS.SERVICES).filter(function (s) { return s.kind === KIND_EXTRA; });
@@ -1683,7 +1712,7 @@ function seedDemoOrders() {
     for (let i = 0; i < 25; i++) {
       const c = {
         id: nextId_('CL', 1000), createdAt: addDays_(today_(), -Math.floor(Math.random() * 150)) + ' 10:00',
-        name: pick(first) + ' ' + pick(last), phone: '+7999' + String(1000000 + Math.floor(Math.random() * 8999999)),
+        name: pick(people).join(' '), phone: '+996' + pick(['555', '700', '707', '770', '999']) + String(100000 + Math.floor(Math.random() * 899999)),
         email: 'demo' + i + '@example.com', address: pick(streets) + ', ' + (1 + Math.floor(Math.random() * 90)),
         referralCode: newReferralCode_(), referredBy: clients.length > 3 && Math.random() < 0.25 ? pick(clients).id : '',
         vip: Math.random() < 0.1, notes: ''

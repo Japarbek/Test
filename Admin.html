@@ -236,7 +236,7 @@
   (function () {
     'use strict';
 
-    var CUR = BOOT.currency || '₽';
+    var CUR = BOOT.currency || 'сом';
     var STATUSES = BOOT.statuses;
     var token = BOOT.token || store('crm_token') || '';
     var cache = {};   // кэш справочников (сотрудники, услуги)
@@ -695,7 +695,7 @@
     //  МАРКЕТИНГ: промокоды, рефералы, реактивация, сертификаты
     // =====================================================================
     var PROMO_FIELDS = [
-      { k: 'code', l: 'Код' }, { k: 'type', l: 'Тип скидки', t: 'select', o: ['%', '₽'] }, { k: 'value', l: 'Значение', t: 'number' },
+      { k: 'code', l: 'Код' }, { k: 'type', l: 'Тип скидки', t: 'select', o: ['%', 'сом'] }, { k: 'value', l: 'Значение', t: 'number' },
       { k: 'minOrder', l: 'Мин. сумма заказа', t: 'number' }, { k: 'validFrom', l: 'Действует с', t: 'date' }, { k: 'validTo', l: 'Действует до', t: 'date' },
       { k: 'maxUses', l: 'Лимит использований (0 = без лимита)', t: 'number' }, { k: 'used', l: 'Использован раз', t: 'number' },
       { k: 'description', l: 'Описание', full: true }, { k: 'active', l: 'Активен', t: 'bool' }
@@ -763,7 +763,7 @@
         $('#addCert').onclick = function () {
           var code = 'GIFT-' + Math.random().toString(36).slice(2, 6).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
           var d = new Date(); d.setFullYear(d.getFullYear() + 1);
-          editItem('certs', { code: code, status: 'Активен', amount: 5000, balance: 5000, validTo: d.toISOString().slice(0, 10) }, CERT_FIELDS, true, VIEWS.marketing, 'code');
+          editItem('certs', { code: code, status: 'Активен', amount: 3000, balance: 3000, validTo: d.toISOString().slice(0, 10) }, CERT_FIELDS, true, VIEWS.marketing, 'code');
         };
         api('crud.list', { table: 'certs' }).then(function (rows) {
           rows.reverse();

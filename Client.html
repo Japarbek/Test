@@ -680,7 +680,7 @@
     var D = BOOT;                  // данные с сервера
     var S = D.settings;            // публичные настройки
     var ST = D.statuses;           // статусы заказов
-    var CUR = S.currency || '₽';
+    var CUR = S.currency || 'сом';
     var mains = D.services.filter(function (s) { return s.kind === 'Основная'; });
     var extras = D.services.filter(function (s) { return s.kind === 'Дополнительная'; });
 
@@ -1157,7 +1157,7 @@
         '<div class="card"><h3><span class="n">3</span>Дата и время</h3><div id="bCal"></div></div>' +
         // 4. Адрес
         '<div class="card"><h3><span class="n">4</span>Адрес и детали</h3>' +
-        '<div class="field"><label>Адрес (улица, дом, квартира)</label><input class="input" id="bAddress" value="' + esc(b.address) + '" placeholder="ул. Пушкина, д. 10, кв. 25" autocomplete="street-address"></div>' +
+        '<div class="field"><label>Адрес (улица, дом, квартира)</label><input class="input" id="bAddress" value="' + esc(b.address) + '" placeholder="ул. Токтогула, 125, кв. 14" autocomplete="street-address"></div>' +
         '<div class="row2"><div class="field"><label>Этаж</label><input class="input" id="bFloor" type="number" min="1" max="100" value="' + esc(b.floor) + '"></div>' +
         '<div class="field" style="justify-content:flex-end;gap:12px"><label class="switch"><input type="checkbox" id="bElevator"' + (b.elevator ? ' checked' : '') + '><i></i>Есть лифт</label>' +
         '<label class="switch"><input type="checkbox" id="bPets"' + (b.pets ? ' checked' : '') + '><i></i>Есть домашние животные</label></div></div>' +
@@ -1165,8 +1165,8 @@
         // 5. Контакты
         '<div class="card"><h3><span class="n">5</span>Контакты</h3>' +
         '<div class="field"><label>Имя</label><input class="input" id="bName" value="' + esc(b.name) + '" autocomplete="name"></div>' +
-        '<div class="row2"><div class="field"><label>Телефон</label><input class="input" id="bPhone" type="tel" value="' + esc(b.phone) + '" placeholder="+7 900 000-00-00" autocomplete="tel"></div>' +
-        '<div class="field"><label>Email (для входа в кабинет)</label><input class="input" id="bEmail" type="email" value="' + esc(b.email) + '" placeholder="you@mail.ru" autocomplete="email"></div></div>' +
+        '<div class="row2"><div class="field"><label>Телефон</label><input class="input" id="bPhone" type="tel" value="' + esc(b.phone) + '" placeholder="+996 700 123 456" autocomplete="tel"></div>' +
+        '<div class="field"><label>Email (для входа в кабинет)</label><input class="input" id="bEmail" type="email" value="' + esc(b.email) + '" placeholder="you@gmail.com" autocomplete="email"></div></div>' +
         (token ? '' : '<p class="small muted" style="margin:0">Уже заказывали? <a data-go="account" style="cursor:pointer">Войдите</a>, чтобы использовать бонусы.</p>') + '</div>' +
         '</div>' +
         // Итог
@@ -1310,14 +1310,14 @@
     //  ПОДАРОЧНЫЕ СЕРТИФИКАТЫ
     // =====================================================================
     function renderGift() {
-      var g = { amount: 5000 };
+      var g = { amount: 3000 };
       $('#giftBody').innerHTML = '<a class="back" data-go="home">← На главную</a>' +
         '<div class="gift-grid"><div><span class="eyebrow">Подарок</span><h1 style="font-size:clamp(1.9rem,4vw,2.8rem)">Подарочный сертификат</h1>' +
         '<p class="hero-sub">Подарите время на отдых. Сертификатом можно оплатить любую уборку полностью или частично в течение года.</p>' +
         '<div class="gift-card"><div style="display:flex;justify-content:space-between;align-items:center;position:relative"><b>' + esc(S.companyName) + '</b><span>🎁</span></div>' +
         '<div style="position:relative"><div class="small" style="opacity:.8" id="gTo">Подарочный сертификат</div><div class="amt" id="gAmt">' + money(g.amount) + '</div><div class="msg-prev" id="gMsg"></div></div></div></div>' +
         '<div class="card"><h3>Оформление</h3><div class="field"><label>Номинал</label><div class="seg" id="gAmounts">' +
-        [3000, 5000, 7000, 10000, 15000].map(function (a) { return '<button data-a="' + a + '" class="' + (a === g.amount ? 'on' : '') + '">' + money(a) + '</button>'; }).join('') +
+        [2000, 3000, 5000, 7000, 10000].map(function (a) { return '<button data-a="' + a + '" class="' + (a === g.amount ? 'on' : '') + '">' + money(a) + '</button>'; }).join('') +
         '</div><input class="input" id="gCustom" type="number" min="1000" step="500" placeholder="Своя сумма" style="margin-top:8px"></div>' +
         '<div class="row2"><div class="field"><label>Кому (имя)</label><input class="input" id="gRecipient" placeholder="Маме"></div><div class="field"><label>Email получателя (необязательно)</label><input class="input" id="gRecEmail" type="email"></div></div>' +
         '<div class="field"><label>Поздравление</label><textarea class="input" id="gMessage" maxlength="300" placeholder="С днём рождения! Отдыхай, а уборку оставь профессионалам ❤️"></textarea></div>' +
@@ -1364,7 +1364,7 @@
       var box = $('#accountBody');
       box.innerHTML = '<div style="max-width:440px;margin:20px auto"><div class="card" style="padding:36px"><h2>Вход в кабинет</h2>' +
         '<p class="muted">Введите телефон или email, указанный при заказе. Мы отправим код на почту.</p>' +
-        '<div id="lStep1"><div class="field"><label>Телефон или email</label><input class="input" id="lId" placeholder="+7 900 000-00-00 или you@mail.ru" value="' + esc(store('cc_login') || '') + '"></div>' +
+        '<div id="lStep1"><div class="field"><label>Телефон или email</label><input class="input" id="lId" placeholder="+996 700 123 456 или you@gmail.com" value="' + esc(store('cc_login') || '') + '"></div>' +
         '<button class="btn btn-primary btn-block" id="lSend">Получить код</button></div>' +
         '<div id="lStep2" class="hidden"><p class="msg ok" id="lSent"></p><div class="field"><label>Код из письма</label><input class="input" id="lCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="font-size:1.4rem;letter-spacing:.4em;text-align:center"></div>' +
         '<button class="btn btn-primary btn-block" id="lVerify">Войти</button><button class="btn btn-block" id="lBack" style="margin-top:6px">← Изменить</button></div>' +
