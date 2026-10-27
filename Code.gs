@@ -209,9 +209,9 @@ function doGet(e) {
  */
 function migrateToKyrgyzstan_() {
   const props = PropertiesService.getScriptProperties();
-  if (props.getProperty('KG_DEFAULTS')) return;
+  if (props.getProperty('KG_DEFAULTS_V2')) return;
   withLock_(function () {
-    if (props.getProperty('KG_DEFAULTS')) return;
+    if (props.getProperty('KG_DEFAULTS_V2')) return;
     if (getSettings_().currency === '₽' && !readAll_(SHEETS.ORDERS).length && !readAll_(SHEETS.CLIENTS).length) {
       const ss = ss_();
       [SHEETS.SETTINGS, SHEETS.SERVICES, SHEETS.EMPLOYEES, SHEETS.PROMO, SHEETS.REVIEWS, SHEETS.CONTENT].forEach(function (n) {
@@ -220,7 +220,7 @@ function migrateToKyrgyzstan_() {
       });
       setup();
     }
-    props.setProperty('KG_DEFAULTS', '1');
+    props.setProperty('KG_DEFAULTS_V2', '1');
   });
 }
 
@@ -294,7 +294,7 @@ function readAll_(name) {
   const out = [];
   for (let r = 1; r < values.length; r++) {
     const row = values[r];
-    if (row.every(function (v) { return v === '' || v === null; })) continue;
+    if (isBlankRow_(row)) continue;
     const o = { _row: r + 1 };
     keys.forEach(function (k, i) { if (k) o[k] = normalize_(k, row[i]); });
     out.push(o);
@@ -307,9 +307,27 @@ function sheetKeys_(name) {
   return headerKeys_(name, sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]);
 }
 
+/**
+ * Пустая ли строка. Ячейки с галочкой хранят FALSE даже в незаполненных
+ * строках, поэтому FALSE тоже считается пустым значением.
+ */
+function isBlankRow_(row) {
+  return row.every(function (v) { return v === '' || v === null || v === false; });
+}
+
+/**
+ * Добавляет запись сразу после последней заполненной строки.
+ * appendRow не подходит: из-за FALSE в заготовленных галочках Sheets считает
+ * занятыми все 1000 строк и дописывал бы новые записи ниже них.
+ */
 function insert_(name, obj) {
+  const sh = sheet_(name);
   const keys = sheetKeys_(name);
-  sheet_(name).appendRow(keys.map(function (k) { return k ? cell_(k, obj[k]) : ''; }));
+  const values = sh.getDataRange().getValues();
+  let last = values.length;
+  while (last > 1 && isBlankRow_(values[last - 1])) last--;
+  if (last + 1 > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 1);
+  sh.getRange(last + 1, 1, 1, keys.length).setValues([keys.map(function (k) { return k ? cell_(k, obj[k]) : ''; })]);
   return obj;
 }
 
@@ -1593,7 +1611,7 @@ function setup() {
       cols.forEach(function (c, i) {
         const range = sh.getRange(2, i + 1, 999, 1);
         if (TEXT_KEYS[c[0]]) range.setNumberFormat('@');
-        // Валидация-чекбокс без записи значений (insertCheckboxes заполнил бы строки FALSE и сломал appendRow)
+        // Галочки: Sheets хранит в них FALSE даже в пустых строках — см. isBlankRow_ и insert_
         if (BOOL_KEYS[c[0]]) range.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
       });
       if (name === SHEETS.ORDERS) {
