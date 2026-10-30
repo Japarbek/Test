@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <!--
+    Клиентская часть CleanCRM.
+    Одностраничное приложение: главная, страница услуги, онлайн-запись,
+    подарочные сертификаты, личный кабинет. Данные для первой отрисовки
+    приходят из Code.gs (переменная BOOT), остальное — через google.script.run.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* =====================================================================
+       ДИЗАЙН «СВЕЖЕСТЬ И ЧИСТОТА»
+       Белая основа, мятные поверхности, лимонные акценты, крупная
+       типографика (Unbounded + Onest), мягкие волны и мыльные пузыри.
+       ===================================================================== */
+    :root {
+      --ink: #12302b;
+      --ink-2: #4b6560;
+      --ink-3: #8fa39e;
+      --bg: #fbfdfc;
+      --white: #ffffff;
+      --mint-50: #f0faf5;
+      --mint-100: #dcf5ea;
+      --mint-200: #bdeedb;
+      --mint-400: #5fd3a8;
+      --mint-600: #1f9e7a;
+      --mint-700: #167a5c;
+      --lemon: #f4f08a;
+      --lemon-100: #fbf9cf;
+      --lemon-600: #cdbf1c;
+      --line: #e3efe9;
+      --danger: #d9534a;
+      --ok: #1f9e7a;
+      --r-xl: 36px;
+      --r-lg: 28px;
+      --r-md: 18px;
+      --r-sm: 12px;
+      --glow: 0 30px 80px -32px rgba(31, 158, 122, .38);
+      --soft: 0 2px 14px rgba(18, 48, 43, .05);
+      --ease: cubic-bezier(.22, .8, .24, 1);
+      --display: 'Unbounded', 'Onest', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: 'Onest', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: 16px; color: var(--ink); background: var(--bg); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+    img { max-width: 100%; display: block; }
+    a { color: var(--mint-700); text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+    input, select, textarea { font: inherit; color: inherit; }
+    h1, h2, h3, h4 { font-family: var(--display); line-height: 1.08; margin: 0 0 .5em; letter-spacing: -.035em; font-weight: 600; }
+    h1 { font-size: clamp(2.5rem, 6.4vw, 5.4rem); }
+    h2 { font-size: clamp(1.9rem, 4vw, 3.2rem); font-weight: 500; }
+    h3 { font-size: 1.12rem; font-weight: 500; letter-spacing: -.02em; line-height: 1.25; }
+    p { margin: 0 0 1em; }
+    .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .section { position: relative; padding: 112px 0; }
+    .section.soft { background: var(--mint-50); }
+    /* Мягкие волны сверху и снизу мятных секций */
+    .section.soft::before, .section.soft::after {
+      content: ''; position: absolute; left: 0; right: 0; height: 56px; pointer-events: none;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 56' preserveAspectRatio='none'%3E%3Cpath d='M0 56V30C160 6 320 0 480 14s320 40 480 34 320-30 480-26v34z' fill='%23f0faf5'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    }
+    .section.soft::before { top: -55px; }
+    .section.soft::after { bottom: -55px; transform: scaleY(-1); }
+    .section-head { max-width: 720px; margin-bottom: 52px; }
+    .section-head p { color: var(--ink-2); font-size: 1.12rem; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); margin-bottom: 18px; padding: 7px 14px 7px 10px; border-radius: 999px; background: var(--white); border: 1px solid var(--line); }
+    .eyebrow::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--mint-400); box-shadow: 0 0 0 4px var(--mint-100); }
+    .muted { color: var(--ink-2); }
+    .small { font-size: .88rem; }
+    .hidden { display: none !important; }
+    .grid { display: grid; gap: 22px; }
+    .mark { background: linear-gradient(transparent 58%, var(--lemon) 58% 90%, transparent 90%); padding: 0 .08em; }
+
+    /* ===================== КНОПКИ И ФОРМЫ ===================== */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 28px; border-radius: 999px; font-weight: 600; letter-spacing: -.01em; transition: transform .25s var(--ease), box-shadow .25s, background .2s, color .2s; white-space: nowrap; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--ink); color: var(--white); box-shadow: 0 14px 30px -14px rgba(18, 48, 43, .55); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -14px rgba(18, 48, 43, .6); }
+    .btn-lemon { background: var(--lemon); color: var(--ink); box-shadow: 0 14px 30px -14px rgba(205, 191, 28, .7); }
+    .btn-lemon:hover { transform: translateY(-2px); background: #f0eb6c; }
+    .btn-ghost { background: var(--mint-100); color: var(--ink); }
+    .btn-ghost:hover { background: var(--mint-200); }
+    .btn-outline { border: 1.5px solid var(--line); background: var(--white); }
+    .btn-outline:hover { border-color: var(--ink); }
+    .btn-danger { background: #fdeeec; color: var(--danger); }
+    .btn-sm { padding: 10px 18px; font-size: .9rem; }
+    .btn-block { width: 100%; }
+    .btn[disabled] { opacity: .55; pointer-events: none; }
+    .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+    .field label { font-size: .86rem; font-weight: 500; color: var(--ink-2); }
+    .input { width: 100%; padding: 14px 18px; border: 1.5px solid var(--line); border-radius: var(--r-md); background: var(--white); outline: none; transition: border-color .2s, box-shadow .2s; }
+    .input:focus { border-color: var(--mint-400); box-shadow: 0 0 0 5px var(--mint-100); }
+    textarea.input { min-height: 96px; resize: vertical; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+    .seg button { padding: 11px 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--white); font-weight: 500; font-size: .94rem; transition: all .2s var(--ease); }
+    .seg button:hover { border-color: var(--mint-400); }
+    .seg button.on { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .stepper { align-self: flex-start; display: inline-flex; align-items: center; border: 1.5px solid var(--line); border-radius: 999px; background: var(--white); padding: 3px; }
+    .stepper button { width: 38px; height: 38px; border-radius: 50%; font-size: 1.15rem; font-weight: 600; transition: background .15s; }
+    .stepper button:hover { background: var(--mint-100); }
+    .stepper span { min-width: 34px; text-align: center; font-weight: 600; font-family: var(--display); }
+    .switch { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; font-weight: 500; }
+    .switch input { display: none; }
+    .switch i { width: 46px; height: 28px; border-radius: 99px; background: var(--line); position: relative; transition: background .25s; flex: none; }
+    .switch i::after { content: ''; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--white); box-shadow: var(--soft); transition: transform .3s var(--ease); }
+    .switch input:checked + i { background: var(--mint-400); }
+    .switch input:checked + i::after { transform: translateX(18px); }
+    .msg { padding: 11px 16px; border-radius: var(--r-sm); font-size: .9rem; margin: 6px 0; }
+    .msg.ok { background: var(--mint-100); color: var(--mint-700); }
+    .msg.error { background: #fdeeec; color: var(--danger); }
+
+    /* ===================== ШАПКА ===================== */
+    .nav { position: sticky; top: 0; z-index: 50; padding: 14px 0; transition: padding .3s var(--ease); }
+    .nav .container { display: flex; align-items: center; gap: 24px; height: 64px; background: rgba(255, 255, 255, .72); backdrop-filter: saturate(1.5) blur(16px); -webkit-backdrop-filter: saturate(1.5) blur(16px); border: 1px solid rgba(227, 239, 233, .9); border-radius: 999px; padding: 0 10px 0 22px; max-width: 1180px; transition: box-shadow .3s; }
+    .nav.scrolled { padding: 8px 0; }
+    .nav.scrolled .container { box-shadow: 0 12px 40px -20px rgba(18, 48, 43, .25); }
+    .logo { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 600; font-size: 1.05rem; letter-spacing: -.03em; color: var(--ink); cursor: pointer; }
+    .logo-mark { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 32% 30%, #fff 0 12%, transparent 13%), linear-gradient(140deg, var(--mint-200), var(--mint-400) 55%, var(--lemon)); display: grid; place-items: center; color: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
+    .nav-links { display: flex; gap: 4px; margin-left: auto; }
+    .nav-links a { color: var(--ink-2); font-weight: 500; font-size: .94rem; cursor: pointer; padding: 8px 12px; border-radius: 999px; transition: background .2s, color .2s; }
+    .nav-links a:hover { color: var(--ink); background: var(--mint-50); }
+    .nav-actions { display: flex; gap: 8px; align-items: center; }
+    .burger { display: none; width: 44px; height: 44px; border-radius: 50%; background: var(--mint-100); font-size: 1.2rem; }
+    .mobile-menu { display: none; }
+
+    /* ===================== HERO + КАЛЬКУЛЯТОР ===================== */
+    .hero { position: relative; overflow: hidden; padding: 64px 0 120px; margin-top: -92px; padding-top: 156px; background:
+      radial-gradient(700px 420px at 88% 18%, var(--mint-100) 0%, transparent 70%),
+      radial-gradient(520px 360px at 6% 92%, var(--lemon-100) 0%, transparent 70%),
+      linear-gradient(180deg, #f6fcf9 0%, var(--bg) 100%); }
+    .hero .container { position: relative; z-index: 2; display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: center; }
+    .hero h1 { margin-bottom: .35em; font-size: clamp(2.3rem, 5vw, 4.3rem); }
+    .hero h1 span { background: linear-gradient(transparent 60%, var(--lemon) 60% 92%, transparent 92%); padding: 0 .06em; }
+    .hero-sub { font-size: 1.2rem; color: var(--ink-2); max-width: 540px; margin-bottom: 34px; }
+    .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-badges { display: flex; gap: 10px; margin-top: 38px; flex-wrap: wrap; }
+    .hero-badges span { display: inline-flex; gap: 6px; align-items: center; padding: 9px 14px; border-radius: 999px; background: rgba(255, 255, 255, .8); border: 1px solid var(--line); font-weight: 500; font-size: .9rem; color: var(--ink-2); }
+    .hero-badges b { color: var(--ink); }
+    .calc { position: relative; background: rgba(255, 255, 255, .78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-radius: var(--r-xl); padding: 32px; box-shadow: var(--glow); border: 1px solid rgba(255, 255, 255, .9); }
+    .calc h3 { display: flex; align-items: center; gap: 10px; font-size: 1.2rem; }
+    .calc .lbl { font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-3); margin: 20px 0 10px; }
+    .calc-price { margin-top: 24px; padding: 20px 22px; border-radius: var(--r-lg); background: var(--mint-50); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .calc-price .sum { font-family: var(--display); font-size: 2.3rem; font-weight: 600; letter-spacing: -.04em; line-height: 1; }
+    .calc-price .sum small { font-family: 'Onest', sans-serif; font-size: .88rem; font-weight: 500; color: var(--ink-3); display: block; margin-bottom: 8px; letter-spacing: 0; }
+    .bump { animation: bump .4s var(--ease); }
+    @keyframes bump { 40% { transform: scale(1.06); color: var(--mint-600); } }
+
+    /* Мыльные пузыри: переливаются и медленно всплывают */
+    .bubbles { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+    .bubble { position: absolute; bottom: -140px; border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 26%, rgba(255, 255, 255, .95) 0 7%, transparent 8%),
+        radial-gradient(circle at 68% 74%, rgba(255, 255, 255, .5) 0 4%, transparent 5%),
+        radial-gradient(circle, transparent 56%, rgba(189, 238, 219, .55) 68%, rgba(244, 240, 138, .5) 80%, rgba(170, 205, 255, .4) 90%, rgba(255, 255, 255, .7) 98%);
+      box-shadow: inset 0 0 12px rgba(255, 255, 255, .6);
+      animation: rise linear infinite; opacity: 0; }
+    @keyframes rise {
+      0% { transform: translate(0, 0) scale(.9); opacity: 0; }
+      10% { opacity: .9; }
+      50% { transform: translate(28px, -55vh) scale(1); }
+      90% { opacity: .8; }
+      100% { transform: translate(-16px, -115vh) scale(1.05); opacity: 0; }
+    }
+
+    /* ===================== СЧЁТЧИКИ ===================== */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+    .stat { padding: 26px 4px 0; border-top: 2px solid var(--mint-200); }
+    .stat b { display: block; font-family: var(--display); font-size: clamp(2.4rem, 4.4vw, 3.6rem); font-weight: 500; letter-spacing: -.05em; line-height: 1.05; margin-bottom: 6px; }
+    .stat span { color: var(--ink-2); font-weight: 500; }
+    .stat:nth-child(2) { border-color: var(--lemon); }
+    .stat:nth-child(4) { border-color: var(--lemon); }
+
+    /* ===================== УСЛУГИ ===================== */
+    .services { grid-template-columns: repeat(3, 1fr); }
+    .svc { position: relative; padding: 32px; border-radius: var(--r-xl); background: var(--white); border: 1px solid var(--line); display: flex; flex-direction: column; transition: transform .4s var(--ease), box-shadow .4s; cursor: pointer; overflow: hidden; }
+    .svc::after { content: ''; position: absolute; width: 180px; height: 180px; border-radius: 50%; right: -70px; top: -70px; background: radial-gradient(circle, var(--mint-100), transparent 70%); transition: transform .5s var(--ease); }
+    .svc:hover { transform: translateY(-6px); box-shadow: var(--glow); }
+    .svc:hover::after { transform: scale(1.5); }
+    .svc-icon { position: relative; z-index: 1; width: 64px; height: 64px; border-radius: 50%; background: var(--lemon-100); display: grid; place-items: center; font-size: 1.8rem; margin-bottom: 22px; }
+    .svc h3 { font-size: 1.3rem; position: relative; z-index: 1; }
+    .svc p { color: var(--ink-2); flex: 1; position: relative; z-index: 1; }
+    .svc .price { font-family: var(--display); font-weight: 500; font-size: 1.3rem; letter-spacing: -.03em; }
+    .svc .more { font-weight: 600; display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--line); }
+    .svc .more span { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); color: var(--white); display: grid; place-items: center; transition: transform .3s var(--ease); }
+    .svc:hover .more span { transform: rotate(-45deg); background: var(--mint-600); }
+    .extras-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px; background: var(--white); border: 1px solid var(--line); font-size: .9rem; font-weight: 500; }
+
+    /* ===================== КАК МЫ РАБОТАЕМ ===================== */
+    .steps { grid-template-columns: repeat(4, 1fr); counter-reset: step; position: relative; }
+    .steps::before { content: ''; position: absolute; top: 34px; left: 12%; right: 12%; border-top: 2px dashed var(--mint-200); }
+    .step { position: relative; padding: 0 10px; text-align: center; }
+    .step::before { counter-increment: step; content: counter(step); position: relative; display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 22px; border-radius: 50%; font-family: var(--display); font-size: 1.5rem; font-weight: 500; background: var(--lemon); box-shadow: 0 0 0 10px var(--bg); }
+    .step:nth-child(even)::before { background: var(--mint-200); }
+    .step p { color: var(--ink-2); margin: 0; }
+
+    /* ===================== ДО / ПОСЛЕ ===================== */
+    .ba-wrap { display: grid; grid-template-columns: 1fr 300px; gap: 28px; align-items: start; }
+    .ba { position: relative; aspect-ratio: 16 / 10; border-radius: var(--r-xl); overflow: hidden; user-select: none; background: #ddd; touch-action: pan-y; box-shadow: var(--glow); }
+    .ba .img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+    .ba .before { clip-path: inset(0 50% 0 0); }
+    .ba .handle { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; background: var(--white); transform: translateX(-50%); pointer-events: none; }
+    .ba .handle::after { content: '⟷'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 52px; height: 52px; border-radius: 50%; background: var(--lemon); display: grid; place-items: center; font-weight: 700; color: var(--ink); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
+    .ba input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
+    .ba .tag { position: absolute; top: 18px; padding: 7px 14px; border-radius: 999px; background: rgba(18, 48, 43, .72); color: var(--white); font-size: .8rem; font-weight: 600; pointer-events: none; }
+    .ba .tag.l { left: 18px; } .ba .tag.r { right: 18px; background: var(--white); color: var(--ink); }
+    .ph-before { background: radial-gradient(circle at 20% 30%, rgba(120, 95, 60, .32) 0 8%, transparent 9%), radial-gradient(circle at 70% 60%, rgba(120, 95, 60, .26) 0 12%, transparent 13%), radial-gradient(circle at 45% 80%, rgba(90, 70, 40, .22) 0 6%, transparent 7%), linear-gradient(135deg, #c4bdaa, #9a927f); }
+    .ph-after { background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, .95) 0 2%, transparent 3%), radial-gradient(circle at 30% 70%, rgba(255, 255, 255, .85) 0 1.5%, transparent 2.5%), radial-gradient(circle at 60% 40%, rgba(244, 240, 138, .6) 0 18%, transparent 40%), linear-gradient(135deg, #f2fcf7, #c8f1df); }
+    .ba-list { display: flex; flex-direction: column; gap: 10px; }
+    .ba-list button { text-align: left; padding: 18px 20px; border-radius: var(--r-md); border: 1.5px solid var(--line); background: var(--white); font-weight: 500; transition: all .25s var(--ease); }
+    .ba-list button:hover { border-color: var(--mint-400); }
+    .ba-list button.on { border-color: var(--ink); background: var(--ink); color: var(--white); }
+
+    /* ===================== ОТЗЫВЫ ===================== */
+    .reviews-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+    .g-rating { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border-radius: 999px; border: 1px solid var(--line); color: var(--ink); }
+    .g-logo { font-family: var(--display); font-weight: 700; font-size: 1.6rem; background: conic-gradient(#ea4335 0 25%, #fbbc05 0 50%, #34a853 0 75%, #4285f4 0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .stars { color: #f2b600; letter-spacing: 2px; }
+    .carousel { position: relative; margin-top: 32px; }
+    .track { display: flex; gap: 22px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding: 6px 6px 24px; scrollbar-width: none; }
+    .track::-webkit-scrollbar { display: none; }
+    .review { position: relative; flex: 0 0 calc((100% - 44px) / 3); scroll-snap-align: start; background: var(--white); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 30px; display: flex; flex-direction: column; gap: 14px; }
+    .review::before { content: '“'; position: absolute; top: 4px; right: 26px; font-family: Georgia, serif; font-size: 5.4rem; line-height: 1; color: var(--mint-200); }
+    .review p { color: var(--ink-2); margin: 0; flex: 1; font-size: 1.02rem; }
+    .review-head { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-weight: 500; color: var(--ink); background: linear-gradient(140deg, var(--mint-200), var(--lemon)); background-size: cover; flex: none; }
+    .car-btns { display: flex; gap: 8px; }
+    .car-btns button { width: 50px; height: 50px; border-radius: 50%; background: var(--white); border: 1px solid var(--line); font-size: 1.15rem; transition: all .2s var(--ease); }
+    .car-btns button:hover { background: var(--ink); color: var(--white); border-color: var(--ink); }
+
+    /* ===================== КОМАНДА ===================== */
+    .team { grid-template-columns: repeat(4, 1fr); }
+    .member { text-align: center; }
+    .member .photo { aspect-ratio: 1; border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; background: linear-gradient(150deg, var(--mint-100), var(--lemon-100)); background-size: cover; background-position: center; margin: 0 auto 18px; display: grid; place-items: center; font-family: var(--display); font-size: 3rem; font-weight: 500; color: var(--mint-600); transition: border-radius .8s var(--ease); max-width: 240px; }
+    .member:hover .photo { border-radius: 54% 46% 48% 52% / 46% 54% 48% 52%; }
+    .member h3 { margin-bottom: 4px; }
+
+    /* ===================== ЗОНЫ / FAQ / КОНТАКТЫ ===================== */
+    .zones { display: flex; flex-wrap: wrap; gap: 10px; }
+    .zones .chip { padding: 13px 20px; font-size: .98rem; transition: border-color .2s, background .2s; }
+    .zones .chip:hover { border-color: var(--mint-400); background: var(--mint-50); }
+    .zones .chip::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--mint-400); margin-right: 4px; }
+    .faq { max-width: 880px; display: flex; flex-direction: column; gap: 12px; }
+    .faq details { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0 28px; transition: box-shadow .3s; }
+    .faq details[open] { box-shadow: var(--glow); }
+    .faq summary { list-style: none; cursor: pointer; padding: 24px 0; font-weight: 600; font-size: 1.08rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: '+'; flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--mint-100); font-size: 1.4rem; font-weight: 400; transition: transform .35s var(--ease), background .3s; }
+    .faq details[open] summary::after { transform: rotate(45deg); background: var(--lemon); }
+    .faq details p { color: var(--ink-2); padding-bottom: 24px; animation: fade .35s; }
+    .gift-banner { position: relative; overflow: hidden; border-radius: var(--r-xl); padding: 56px; background: var(--lemon); color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+    .gift-banner::before, .gift-banner::after { content: ''; position: absolute; border-radius: 50%; background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, .9) 0 8%, transparent 9%), radial-gradient(circle, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .6) 96%); }
+    .gift-banner::before { width: 220px; height: 220px; right: 22%; top: -110px; }
+    .gift-banner::after { width: 120px; height: 120px; right: 4%; bottom: -40px; }
+    .gift-banner > * { position: relative; z-index: 1; }
+    .gift-banner p { color: #4d5326; margin: 0; font-size: 1.08rem; }
+    .contacts { display: grid; grid-template-columns: 1fr 1.3fr; gap: 28px; }
+    .contact-card { background: var(--white); border-radius: var(--r-xl); border: 1px solid var(--line); padding: 34px; }
+    .contact-line { display: flex; gap: 14px; margin-bottom: 18px; align-items: center; }
+    .contact-line i { font-style: normal; width: 46px; height: 46px; border-radius: 50%; background: var(--mint-100); display: grid; place-items: center; flex: none; }
+    .contact-line a { color: var(--ink); }
+    .socials { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px; }
+    .socials a { padding: 11px 18px; border-radius: 999px; background: var(--mint-50); border: 1px solid var(--line); font-weight: 500; font-size: .92rem; color: var(--ink); transition: all .2s; }
+    .socials a:hover { background: var(--ink); color: var(--white); border-color: var(--ink); }
+    .map { border-radius: var(--r-xl); overflow: hidden; min-height: 380px; border: 1px solid var(--line); background: var(--mint-100); }
+    .map iframe { width: 100%; height: 100%; min-height: 380px; border: 0; display: block; filter: saturate(.85) hue-rotate(-8deg); }
+    footer { padding: 72px 0 48px; color: var(--ink-3); font-size: .92rem; }
+    footer .container { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 28px; }
+
+    /* ===================== СТРАНИЦЫ (запись, услуга, кабинет) ===================== */
+    .page { position: relative; padding: 40px 0 100px; min-height: 70vh; background: radial-gradient(800px 360px at 100% 0%, var(--mint-50), transparent 70%); }
+    .page h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); }
+    .back { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-2); font-weight: 500; margin-bottom: 26px; cursor: pointer; padding: 8px 14px 8px 10px; border-radius: 999px; background: var(--white); border: 1px solid var(--line); font-size: .92rem; }
+    .back:hover { border-color: var(--ink); color: var(--ink); }
+    .book-grid { display: grid; grid-template-columns: 1fr 390px; gap: 32px; align-items: start; }
+    .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 32px; margin-bottom: 20px; }
+    .card h3 { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; font-size: 1.2rem; }
+    .card h3 .n { width: 36px; height: 36px; border-radius: 50%; background: var(--lemon); display: grid; place-items: center; font-size: .95rem; flex: none; }
+    .svc-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .svc-pick button { text-align: left; padding: 18px; border-radius: var(--r-lg); border: 1.5px solid var(--line); background: var(--white); transition: all .25s var(--ease); }
+    .svc-pick button:hover { border-color: var(--mint-400); }
+    .svc-pick button b { display: block; margin: 8px 0 3px; font-weight: 600; }
+    .svc-pick button.on { border-color: var(--mint-400); background: var(--mint-50); box-shadow: 0 0 0 4px var(--mint-100); }
+    .extra-row { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px dashed var(--line); }
+    .extra-row:last-child { border: 0; }
+    .extra-row .e-ic { font-size: 1.35rem; width: 48px; height: 48px; border-radius: 50%; background: var(--mint-50); display: grid; place-items: center; flex: none; }
+    .extra-row .e-name { flex: 1; }
+    .extra-row .e-name b { font-weight: 600; }
+    .extra-row .e-name small { display: block; color: var(--ink-3); }
+    .summary { position: sticky; top: 104px; }
+    .summary .card { background: linear-gradient(180deg, var(--mint-50), var(--white) 60%); }
+    .summary .line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: .94rem; }
+    .summary .line span:first-child { color: var(--ink-2); }
+    .summary .total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1.5px dashed var(--mint-200); margin-top: 14px; padding-top: 18px; font-family: var(--display); font-weight: 600; font-size: 1.7rem; letter-spacing: -.04em; }
+    .summary .total span:first-child { font-size: 1rem; letter-spacing: -.02em; }
+    .summary .disc span:last-child { color: var(--ok); font-weight: 600; }
+
+    /* Календарь */
+    .cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .cal-head b { text-transform: capitalize; font-family: var(--display); font-weight: 500; font-size: 1.05rem; letter-spacing: -.02em; }
+    .cal-head button { width: 40px; height: 40px; border-radius: 50%; background: var(--mint-50); border: 1px solid var(--line); font-weight: 600; }
+    .cal-head button:hover { background: var(--ink); color: var(--white); }
+    .cal-head button[disabled] { opacity: .3; pointer-events: none; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cal-grid .wd { text-align: center; font-size: .74rem; font-weight: 600; color: var(--ink-3); padding: 4px 0; text-transform: uppercase; letter-spacing: .06em; }
+    .cal-grid .d { aspect-ratio: 1; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 600; border: 1.5px solid transparent; position: relative; font-size: .95rem; max-height: 64px; width: 100%; margin: 0 auto; transition: all .2s var(--ease); }
+    .cal-grid .d.free { background: var(--mint-50); }
+    .cal-grid .d.free:hover { border-color: var(--mint-400); transform: scale(1.06); }
+    .cal-grid .d.free::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--mint-400); margin-top: 3px; }
+    .cal-grid .d.few::after { background: var(--lemon-600); }
+    .cal-grid .d.full { color: var(--ink-3); text-decoration: line-through; background: #fbf3f1; }
+    .cal-grid .d.closed { color: #cfdcd7; }
+    .cal-grid .d.sel { background: var(--ink) !important; color: var(--white); }
+    .cal-grid .d.sel::after { background: var(--lemon); }
+    .cal-legend { display: flex; gap: 16px; font-size: .8rem; color: var(--ink-3); margin-top: 12px; flex-wrap: wrap; }
+    .cal-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+    .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 16px; }
+    .slots button { padding: 11px 0; border-radius: 999px; border: 1.5px solid var(--line); background: var(--white); font-weight: 600; transition: all .15s; }
+    .slots button:hover { border-color: var(--mint-400); }
+    .slots button.on { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .slots button[disabled] { color: #c3d0cc; text-decoration: line-through; background: #f6f9f8; pointer-events: none; }
+    .loading { position: relative; opacity: .5; pointer-events: none; }
+
+    /* Страница услуги */
+    .svc-hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 40px; align-items: center; margin-bottom: 44px; }
+    .svc-hero .big-ic { position: relative; font-size: 5.5rem; aspect-ratio: 1.2; border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; background: radial-gradient(circle at 30% 28%, #fff 0 6%, transparent 7%), linear-gradient(140deg, var(--mint-100), var(--lemon-100)); display: grid; place-items: center; background-size: cover; background-position: center; box-shadow: var(--glow); }
+    .incl { grid-template-columns: repeat(3, 1fr); }
+    .incl ul { list-style: none; padding: 0; margin: 0; }
+    .incl li { display: flex; gap: 12px; padding: 9px 0; color: var(--ink-2); }
+    .incl li::before { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .76rem; font-weight: 700; margin-top: 1px; }
+    .incl .yes li::before { content: '✓'; background: var(--mint-100); color: var(--mint-700); }
+    .incl .plus li::before { content: '+'; background: var(--lemon); color: var(--ink); }
+    .incl .no li::before { content: '✕'; background: #fdeeec; color: var(--danger); }
+    .price-table { width: 100%; border-collapse: collapse; }
+    .price-table td { padding: 13px 0; border-bottom: 1px dashed var(--line); }
+    .price-table td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
+
+    /* Сертификаты */
+    .gift-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: start; }
+    .gift-card { aspect-ratio: 1.6; border-radius: var(--r-xl); padding: 32px; color: var(--ink); background: radial-gradient(circle at 85% 15%, rgba(255, 255, 255, .7) 0 4%, transparent 5%), linear-gradient(135deg, var(--mint-200) 0%, #d9f6e9 45%, var(--lemon) 100%); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: var(--glow); }
+    .gift-card::before { content: ''; position: absolute; width: 280px; height: 280px; border-radius: 50%; right: -90px; bottom: -110px; background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, .9) 0 7%, transparent 8%), radial-gradient(circle, rgba(255, 255, 255, .1) 55%, rgba(255, 255, 255, .7) 97%); }
+    .gift-card .amt { font-family: var(--display); font-size: 3rem; font-weight: 600; letter-spacing: -.05em; }
+    .gift-card .msg-prev { font-style: italic; opacity: .85; min-height: 1.4em; }
+
+    /* Личный кабинет */
+    .acc-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+    .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--line); padding: 5px; border-radius: 999px; width: fit-content; margin-bottom: 28px; flex-wrap: wrap; }
+    .tabs button { padding: 11px 20px; border-radius: 999px; font-weight: 500; color: var(--ink-2); transition: all .2s; }
+    .tabs button.on { background: var(--ink); color: var(--white); }
+    .order { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
+    .order h3 { font-size: 1.15rem; }
+    .order-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: .93rem; margin: 10px 0 16px; }
+    .order-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .order .price-big { font-family: var(--display); font-size: 1.5rem; font-weight: 600; letter-spacing: -.04em; white-space: nowrap; }
+    .badge { display: inline-flex; padding: 6px 13px; border-radius: 999px; font-size: .8rem; font-weight: 600; background: var(--mint-50); }
+    .badge.s-new { background: var(--lemon-100); color: #7d7300; }
+    .badge.s-assigned { background: #e8f0ff; color: #2c5bc4; }
+    .badge.s-progress { background: #f0e9ff; color: #6c43cf; }
+    .badge.s-done { background: var(--mint-100); color: var(--mint-700); }
+    .badge.s-cancel { background: #fdeeec; color: var(--danger); }
+    .bonus-hero { position: relative; overflow: hidden; border-radius: var(--r-xl); padding: 36px; background: linear-gradient(135deg, var(--mint-100), var(--lemon-100)); color: var(--ink); display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .bonus-hero .big { font-family: var(--display); font-size: 3.2rem; font-weight: 600; letter-spacing: -.05em; line-height: 1; margin-top: 6px; }
+    .bonus-hero .small { color: var(--ink-2); }
+    .ref-code { display: flex; gap: 8px; margin-top: 10px; }
+    .ref-code code { flex: 1; padding: 13px 18px; border-radius: 999px; background: var(--white); font-family: var(--display); font-size: 1.05rem; font-weight: 500; letter-spacing: .06em; }
+    .star-pick { display: flex; gap: 6px; font-size: 2.4rem; margin: 6px 0 16px; }
+    .star-pick button { color: #e1e8e5; transition: transform .15s, color .15s; }
+    .star-pick button.on { color: #f2b600; }
+    .star-pick button:hover { transform: scale(1.15); }
+    .success { text-align: center; max-width: 540px; margin: 40px auto; }
+    .success .check { width: 104px; height: 104px; border-radius: 50%; background: radial-gradient(circle at 30% 28%, #fff 0 8%, transparent 9%), linear-gradient(140deg, var(--mint-200), var(--lemon)); color: var(--ink); font-size: 2.6rem; display: grid; place-items: center; margin: 0 auto 26px; animation: pop .6s var(--ease); }
+    @keyframes pop { 0% { transform: scale(.3); opacity: 0; } 70% { transform: scale(1.1); } }
+
+    /* ===================== МОДАЛКА / ТОСТ / АНИМАЦИИ ===================== */
+    .modal-bg { position: fixed; inset: 0; background: rgba(18, 48, 43, .32); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; animation: fade .2s; }
+    .modal { background: var(--white); border-radius: var(--r-xl); width: 100%; max-width: 540px; max-height: 92vh; overflow: auto; padding: 34px; animation: up .35s var(--ease); position: relative; box-shadow: 0 40px 100px -30px rgba(18, 48, 43, .4); }
+    .modal h3 { font-size: 1.35rem; padding-right: 40px; }
+    .modal .x { position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; border-radius: 50%; background: var(--mint-50); font-size: 1rem; }
+    .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(120px); background: var(--ink); color: var(--white); padding: 15px 24px; border-radius: 999px; z-index: 200; transition: transform .4s var(--ease), opacity .4s; max-width: calc(100% - 32px); font-weight: 500; box-shadow: 0 20px 50px -20px rgba(18, 48, 43, .6); opacity: 0; pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.err { background: var(--danger); }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes up { from { transform: translateY(28px); opacity: 0; } }
+    .reveal { opacity: 0; transform: translateY(36px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
+    .reveal.in { opacity: 1; transform: none; }
+    .view { animation: fade .4s; }
+    .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .35); border-top-color: var(--white); animation: spin .8s linear infinite; }
+    .spinner.dark { border-color: var(--mint-100); border-top-color: var(--mint-600); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .center { display: flex; justify-content: center; padding: 40px; }
+    .empty { text-align: center; padding: 52px 20px; color: var(--ink-3); }
+    .sticky-cta { display: none; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .reveal { opacity: 1; transform: none; } .bubbles { display: none; } }
+
+    /* ===================== АДАПТИВ ===================== */
+    @media (max-width: 1000px) {
+      .hero .container, .book-grid, .contacts, .svc-hero, .gift-grid, .ba-wrap { grid-template-columns: 1fr; }
+      .stats, .team { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: repeat(2, 1fr); row-gap: 40px; }
+      .steps::before { display: none; }
+      .services, .incl { grid-template-columns: 1fr; }
+      .review { flex-basis: calc((100% - 22px) / 2); }
+      .summary { position: static; }
+      .ba-list { flex-direction: row; overflow-x: auto; }
+      .ba-list button { flex: none; }
+      .nav-links { display: none; }
+      .burger { display: grid; place-items: center; }
+      .nav-actions .btn-ghost, .nav-actions .btn-primary { display: none; }
+      .nav-actions { margin-left: auto; }
+      .mobile-menu.open { display: flex; flex-direction: column; gap: 2px; margin: 8px 24px 0; padding: 10px 22px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--white); box-shadow: var(--glow); }
+      .mobile-menu a { padding: 13px 0; font-weight: 500; color: var(--ink); border-bottom: 1px dashed var(--line); cursor: pointer; }
+      .mobile-menu a:last-child { border: 0; }
+      .sticky-cta { display: flex; position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: rgba(255, 255, 255, .9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line); z-index: 40; gap: 10px; }
+      .sticky-cta .btn { flex: 1; padding: 14px; }
+      body.has-cta { padding-bottom: 80px; }
+    }
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      .nav { padding: 10px 0; }
+      .nav .container { margin: 0 12px; width: auto; padding: 0 6px 0 16px; height: 58px; }
+      .hero { padding-top: 120px; padding-bottom: 88px; }
+      .hero-sub { font-size: 1.05rem; }
+      .section { padding: 84px 0; }
+      .section-head { margin-bottom: 36px; }
+      .stats { gap: 24px 16px; }
+      .team { gap: 16px; }
+      .svc-pick, .row2 { grid-template-columns: 1fr; }
+      .review { flex-basis: 88%; }
+      .calc, .card, .contact-card { padding: 24px; border-radius: var(--r-lg); }
+      .svc { padding: 26px; }
+      .bonus-hero { grid-template-columns: 1fr; padding: 28px; }
+      .gift-banner { padding: 34px 28px; }
+      .order { grid-template-columns: 1fr; }
+      .faq details { padding: 0 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== ШАПКА ===================== -->
+  <header class="nav" id="nav">
+    <div class="container">
+      <div class="logo" data-go="home"><span class="logo-mark">✦</span><span id="logoName"></span></div>
+      <nav class="nav-links">
+        <a data-scroll="services">Услуги</a>
+        <a data-scroll="how">Как мы работаем</a>
+        <a data-scroll="reviews">Отзывы</a>
+        <a data-scroll="faq">FAQ</a>
+        <a data-scroll="contacts">Контакты</a>
+        <a data-go="gift">Сертификаты</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn btn-ghost btn-sm" data-go="account">👤 Кабинет</button>
+        <button class="btn btn-primary btn-sm" data-go="book">Записаться</button>
+        <button class="burger" id="burger" aria-label="Меню">☰</button>
+      </div>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a data-scroll="services">Услуги</a>
+      <a data-scroll="how">Как мы работаем</a>
+      <a data-scroll="reviews">Отзывы</a>
+      <a data-scroll="faq">FAQ</a>
+      <a data-scroll="contacts">Контакты</a>
+      <a data-go="gift">Подарочные сертификаты</a>
+      <a data-go="account">Личный кабинет</a>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- ===================== ГЛАВНАЯ ===================== -->
+    <div id="view-home" class="view">
+      <section class="hero">
+        <div class="bubbles" id="heroBubbles" aria-hidden="true"></div>
+        <div class="container">
+          <div>
+            <span class="eyebrow" id="heroEyebrow">Клининг · фиксированная цена</span>
+            <h1 id="heroTitle"></h1>
+            <p class="hero-sub" id="heroSub"></p>
+            <div class="hero-cta">
+              <button class="btn btn-primary" id="ctaCalc">Рассчитать цену</button>
+              <button class="btn btn-outline" data-go="book">Записаться онлайн</button>
+            </div>
+            <div class="hero-badges">
+              <span>⭐ <b id="heroRating">4.9</b> в Google</span>
+              <span>🛡️ Гарантия качества</span>
+              <span>🌿 Экосредства</span>
+            </div>
+          </div>
+          <div class="calc" id="calc">
+            <h3>🧮 Калькулятор стоимости</h3>
+            <div class="lbl">Тип помещения</div>
+            <div class="seg" id="calcType"></div>
+            <div class="lbl">Количество комнат</div>
+            <div class="seg" id="calcRooms"></div>
+            <div class="lbl">Тип уборки</div>
+            <div class="seg" id="calcService"></div>
+            <div class="calc-price">
+              <div class="sum" id="calcSum"><small>Стоимость</small>—</div>
+              <button class="btn btn-lemon" id="calcBook">Записаться →</button>
+            </div>
+            <p class="small muted" style="margin:12px 0 0" id="calcNote"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top:0">
+        <div class="container">
+          <div class="stats reveal">
+            <div class="stat"><b data-count="orders">0</b><span>выполненных заказов</span></div>
+            <div class="stat"><b data-count="years">0</b><span>лет на рынке</span></div>
+            <div class="stat"><b data-count="clients">0</b><span>довольных клиентов</span></div>
+            <div class="stat"><b data-count="rating" data-decimals="1">0</b><span>средняя оценка</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section soft" id="services">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">Услуги</span>
+            <h2>Подберём уборку под ваш случай</h2>
+            <p>Фиксированная цена без скрытых доплат. Нажмите на услугу, чтобы посмотреть, что входит.</p>
+          </div>
+          <div class="grid services reveal" id="servicesGrid"></div>
+          <div class="extras-strip reveal" id="extrasStrip"></div>
+        </div>
+      </section>
+
+      <section class="section" id="how">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">Процесс</span>
+            <h2>Как мы работаем</h2>
+            <p>Четыре простых шага — от заявки до сияющей чистоты.</p>
+          </div>
+          <div class="grid steps reveal" id="stepsGrid"></div>
+        </div>
+      </section>
+
+      <section class="section soft" id="gallery">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">Результаты</span>
+            <h2>До и после</h2>
+            <p>Потяните ползунок, чтобы увидеть разницу.</p>
+          </div>
+          <div class="ba-wrap reveal">
+            <div class="ba" id="ba">
+              <div class="img after" id="baAfter"></div>
+              <div class="img before" id="baBefore"></div>
+              <span class="tag l">До</span><span class="tag r">После</span>
+              <div class="handle" id="baHandle"></div>
+              <input type="range" min="0" max="100" value="50" id="baRange" aria-label="Сравнение до и после">
+            </div>
+            <div class="ba-list" id="baList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="reviews">
+        <div class="container">
+          <div class="reviews-top reveal">
+            <div class="section-head" style="margin:0">
+              <span class="eyebrow">Отзывы</span>
+              <h2>Нам доверяют</h2>
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+              <a class="g-rating" id="gRating" target="_blank" rel="noopener">
+                <span class="g-logo">G</span>
+                <div><b id="gAvg">5.0</b> <span class="stars" id="gStars">★★★★★</span><div class="small muted" id="gCount"></div></div>
+              </a>
+              <div class="car-btns"><button id="revPrev" aria-label="Назад">←</button><button id="revNext" aria-label="Вперёд">→</button></div>
+            </div>
+          </div>
+          <div class="carousel reveal"><div class="track" id="reviewsTrack"></div></div>
+        </div>
+      </section>
+
+      <section class="section soft" id="team">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">Команда</span>
+            <h2>Люди, которые наводят порядок</h2>
+            <p>Каждый сотрудник проходит проверку, обучение и стажировку.</p>
+          </div>
+          <div class="grid team reveal" id="teamGrid"></div>
+        </div>
+      </section>
+
+      <section class="section" id="zones">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">География</span>
+            <h2>Зоны обслуживания</h2>
+            <p>Не нашли свой район? Позвоните — скорее всего, мы приедем.</p>
+          </div>
+          <div class="zones reveal" id="zonesList"></div>
+        </div>
+      </section>
+
+      <section class="section soft" id="faq">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">FAQ</span>
+            <h2>Частые вопросы</h2>
+          </div>
+          <div class="faq reveal" id="faqList"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="gift-banner reveal">
+            <div>
+              <h2 style="margin-bottom:8px">🎁 Подарите чистоту</h2>
+              <p>Подарочный сертификат на уборку — лучший подарок маме, друзьям и коллегам.</p>
+            </div>
+            <button class="btn btn-primary" data-go="gift">Купить сертификат</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section soft" id="contacts">
+        <div class="container">
+          <div class="section-head reveal">
+            <span class="eyebrow">Контакты</span>
+            <h2>Мы на связи</h2>
+          </div>
+          <div class="contacts reveal">
+            <div class="contact-card" id="contactCard"></div>
+            <div class="map" id="map"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===================== СТРАНИЦА УСЛУГИ ===================== -->
+    <div id="view-service" class="view hidden"><div class="page"><div class="container" id="serviceBody"></div></div></div>
+
+    <!-- ===================== ОНЛАЙН-ЗАПИСЬ ===================== -->
+    <div id="view-book" class="view hidden"><div class="page"><div class="container" id="bookBody"></div></div></div>
+
+    <!-- ===================== СЕРТИФИКАТЫ ===================== -->
+    <div id="view-gift" class="view hidden"><div class="page"><div class="container" id="giftBody"></div></div></div>
+
+    <!-- ===================== ЛИЧНЫЙ КАБИНЕТ ===================== -->
+    <div id="view-account" class="view hidden"><div class="page"><div class="container" id="accountBody"></div></div></div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span id="footName"></span>
+      <span><a data-go="gift" style="cursor:pointer">Сертификаты</a> · <a data-go="account" style="cursor:pointer">Личный кабинет</a></span>
+    </div>
+  </footer>
+
+  <div class="sticky-cta" id="stickyCta">
+    <button class="btn btn-outline" id="stickyCalc">Цена</button>
+    <button class="btn btn-primary" data-go="book">Записаться</button>
+  </div>
+  <div id="modalRoot"></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var BOOT = <?!= bootJson ?>;
+  </script>
+  <script>
+  /* =====================================================================
+     КЛИЕНТСКОЕ ПРИЛОЖЕНИЕ
+     ===================================================================== */
+  (function () {
+    'use strict';
+
+    var D = BOOT;                  // данные с сервера
+    var S = D.settings;            // публичные настройки
+    var ST = D.statuses;           // статусы заказов
+    var CUR = S.currency || 'сом';
+    var mains = D.services.filter(function (s) { return s.kind === 'Основная'; });
+    var extras = D.services.filter(function (s) { return s.kind === 'Дополнительная'; });
+
+    // ---------------- Утилиты ----------------
+    function $(sel, root) { return (root || document).querySelector(sel); }
+    function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function money(v) { return Math.round(Number(v) || 0).toLocaleString('ru-RU') + ' ' + CUR; }
+    function round10(v) { return Math.round(v / 10) * 10; }
+    function svcById(id) { return D.services.find(function (s) { return String(s.id) === String(id); }); }
+    function ptById(id) { return D.propertyTypes.find(function (p) { return p.id === id; }) || D.propertyTypes[0]; }
+    function ptByName(n) { return D.propertyTypes.find(function (p) { return p.name === n; }) || D.propertyTypes[0]; }
+    function plural(n, a, b, c) { n = Math.abs(n) % 100; var n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
+    function fmtDate(s) { if (!s) return ''; var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' }); }
+    function hours(h) { return (Math.round(h * 2) / 2).toString().replace('.', ',') + ' ч'; }
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+    function debounce(fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms); }; }
+
+    /** Вызов серверной функции через google.script.run как Promise */
+    function api(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function (resolve, reject) {
+        if (!window.google || !google.script || !google.script.run) { reject(new Error('Нет связи с сервером')); return; }
+        var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
+          var msg = (e && e.message) || String(e);
+          if (msg.indexOf('AUTH:') >= 0) { setToken(null); msg = msg.replace(/^.*AUTH:\s*/, ''); }
+          reject(new Error(msg.replace(/^Error:\s*/, '').replace(/^Exception:\s*/, '')));
+        });
+        r[fn].apply(r, args);
+      });
+    }
+
+    function toast(text, isErr) {
+      var t = $('#toast');
+      t.textContent = text;
+      t.className = 'toast show' + (isErr ? ' err' : '');
+      clearTimeout(t._t);
+      t._t = setTimeout(function () { t.className = 'toast' + (isErr ? ' err' : ''); }, 3800);
+    }
+    function fail(e) { toast(e.message || String(e), true); }
+
+    function modal(html, onMount) {
+      var root = $('#modalRoot');
+      root.innerHTML = '<div class="modal-bg"><div class="modal"><button class="x" aria-label="Закрыть">✕</button>' + html + '</div></div>';
+      var bg = root.firstChild;
+      var close = function () { root.innerHTML = ''; };
+      bg.addEventListener('click', function (e) { if (e.target === bg || e.target.classList.contains('x')) close(); });
+      if (onMount) onMount(bg.firstChild, close);
+      return close;
+    }
+
+    /** Блокировка кнопки на время запроса */
+    function busy(btn, on) {
+      if (!btn) return;
+      if (on) { btn._html = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner' + (btn.classList.contains('btn-primary') ? '' : ' dark') + '"></span>'; }
+      else { btn.disabled = false; if (btn._html) btn.innerHTML = btn._html; }
+    }
+
+    // ---------------- Сессия клиента ----------------
+    var token = store('cc_token') || '';
+    function setToken(t) { token = t || ''; store('cc_token', t ? t : null); }
+
+    // ---------------- Расчёт цены (зеркало calcQuote_ на сервере, без скидок) ----------------
+    function localQuote(q) {
+      var main = svcById(q.serviceId) || mains[0];
+      var pt = ptById(q.propertyType);
+      var rooms = Math.max(1, Math.min(20, q.rooms || 1));
+      var lines = [];
+      var base = round10((main.basePrice + main.perRoom * rooms) * pt.coef);
+      lines.push({ name: main.name + ' · ' + pt.name + ', ' + rooms + ' комн.', amount: base });
+      var h = (main.baseHours + main.perRoomHours * rooms) * pt.coef;
+      Object.keys(q.extras || {}).forEach(function (id) {
+        var s = svcById(id), qty = q.extras[id];
+        if (!s || !qty) return;
+        lines.push({ name: s.name + (qty > 1 ? ' × ' + qty : ''), amount: s.basePrice * qty });
+        h += s.baseHours * qty;
+      });
+      if (q.pets && +S.petsSurcharge) lines.push({ name: 'Домашние животные', amount: +S.petsSurcharge });
+      var floor = parseInt(q.floor, 10) || 1;
+      if (!q.elevator && floor > 1 && +S.noElevatorPerFloor && pt.id !== 'house') lines.push({ name: 'Подъём без лифта (' + floor + ' этаж)', amount: (floor - 1) * S.noElevatorPerFloor });
+      var sub = lines.reduce(function (a, l) { return a + l.amount; }, 0);
+      var min = +S.minOrder || 0;
+      if (sub < min) { lines.push({ name: 'Доплата до минимального заказа', amount: min - sub }); sub = min; }
+      return { lines: lines, subtotal: sub, duration: Math.max(2, Math.ceil(h * 2) / 2) };
+    }
+
+    // =====================================================================
+    //  РОУТИНГ (google.script.history — работает внутри iframe Apps Script)
+    // =====================================================================
+    var views = ['home', 'service', 'book', 'gift', 'account'];
+    var current = '';
+
+    function go(view, param, opts) {
+      opts = opts || {};
+      if (views.indexOf(view) < 0) view = 'home';
+      views.forEach(function (v) { $('#view-' + v).classList.toggle('hidden', v !== view); });
+      current = view;
+      document.body.classList.toggle('has-cta', view === 'home');
+      $('#mobileMenu').classList.remove('open');
+      if (view === 'service') renderService(param);
+      if (view === 'book') renderBooking(opts.prefill);
+      if (view === 'gift') renderGift();
+      if (view === 'account') renderAccount();
+      if (!opts.keepScroll) window.scrollTo(0, 0);
+      if (!opts.silent && window.google && google.script && google.script.history) {
+        google.script.history.push({ view: view, param: param || '' }, null, view + (param ? '-' + param : ''));
+      }
+    }
+
+    function scrollToSection(id) {
+      var doScroll = function () { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      if (current !== 'home') { go('home'); setTimeout(doScroll, 60); } else doScroll();
+      $('#mobileMenu').classList.remove('open');
+    }
+
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-go]');
+      if (a) { e.preventDefault(); go(a.getAttribute('data-go'), a.getAttribute('data-param')); return; }
+      var s = e.target.closest('[data-scroll]');
+      if (s) { e.preventDefault(); scrollToSection(s.getAttribute('data-scroll')); }
+    });
+    $('#burger').addEventListener('click', function () { $('#mobileMenu').classList.toggle('open'); });
+    window.addEventListener('scroll', function () { $('#nav').classList.toggle('scrolled', window.scrollY > 10); }, { passive: true });
+
+    // =====================================================================
+    //  ГЛАВНАЯ
+    // =====================================================================
+    function renderHome() {
+      document.title = S.companyName + ' — клининг';
+      $('#logoName').textContent = S.companyName;
+      $('#footName').textContent = '© ' + new Date().getFullYear() + ' ' + S.companyName + ' · ' + (S.phone || '');
+      var parts = String(S.slogan || '').split('—');
+      $('#heroTitle').innerHTML = parts.length > 1 ? esc(parts[0].trim()) + '&nbsp;—<br><span>' + esc(parts.slice(1).join('—').trim()) + '</span>' : esc(S.slogan);
+      $('#heroSub').textContent = S.subSlogan || '';
+
+      renderCalc();
+      renderServicesGrid();
+      renderSteps();
+      renderGallery();
+      renderReviews();
+      renderTeam();
+      renderZones();
+      renderFaq();
+      renderContacts();
+      initCounters();
+      spawnBubbles($('#heroBubbles'), window.innerWidth < 640 ? 7 : 14);
+    }
+
+    /** Мыльные пузыри в hero: случайный размер, позиция и скорость всплытия */
+    function spawnBubbles(box, n) {
+      if (!box || box.childElementCount) return;
+      for (var i = 0; i < n; i++) {
+        var b = document.createElement('span');
+        var size = 18 + Math.random() * 90;
+        b.className = 'bubble';
+        b.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + (Math.random() * 96) + '%;' +
+          'animation-duration:' + (14 + Math.random() * 16) + 's;animation-delay:' + (-Math.random() * 28) + 's';
+        box.appendChild(b);
+      }
+    }
+
+    // ----- Калькулятор на главной -----
+    var calc = { propertyType: 'flat', rooms: 2, serviceId: mains[0] && mains[0].id };
+    function renderCalc() {
+      $('#calcType').innerHTML = D.propertyTypes.map(function (p) {
+        return '<button data-v="' + p.id + '" class="' + (calc.propertyType === p.id ? 'on' : '') + '">' + { flat: '🏢 ', house: '🏡 ', office: '💼 ' }[p.id] + esc(p.name) + '</button>';
+      }).join('');
+      $('#calcRooms').innerHTML = [1, 2, 3, 4, 5, 6].map(function (n) {
+        return '<button data-v="' + n + '" class="' + (calc.rooms === n ? 'on' : '') + '">' + (n === 6 ? '6+' : n) + '</button>';
+      }).join('');
+      $('#calcService').innerHTML = mains.map(function (s) {
+        return '<button data-v="' + esc(s.id) + '" class="' + (String(calc.serviceId) === String(s.id) ? 'on' : '') + '">' + esc(s.name.replace(' уборка', '').replace('Уборка ', '')) + '</button>';
+      }).join('');
+      updateCalcPrice();
+    }
+    function updateCalcPrice() {
+      if (!mains.length) return;
+      var q = localQuote({ serviceId: calc.serviceId, propertyType: calc.propertyType, rooms: calc.rooms, extras: {}, floor: 1, elevator: true });
+      var el = $('#calcSum');
+      el.innerHTML = '<small>Стоимость уборки</small>' + money(q.subtotal);
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+      $('#calcNote').textContent = 'Примерно ' + hours(q.duration) + ' работы · средства и инвентарь включены';
+    }
+    function bindSeg(id, key, parse) {
+      $(id).addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        calc[key] = parse ? parse(b.getAttribute('data-v')) : b.getAttribute('data-v');
+        $$('button', $(id)).forEach(function (x) { x.classList.toggle('on', x === b); });
+        updateCalcPrice();
+      });
+    }
+    bindSeg('#calcType', 'propertyType');
+    bindSeg('#calcRooms', 'rooms', function (v) { return parseInt(v, 10); });
+    bindSeg('#calcService', 'serviceId');
+    var focusCalc = function () { $('#calc').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#calc').animate([{ boxShadow: '0 0 0 0 rgba(20,184,166,.5)' }, { boxShadow: '0 0 0 14px rgba(20,184,166,0)' }], { duration: 900 }); };
+    $('#ctaCalc').addEventListener('click', focusCalc);
+    $('#stickyCalc').addEventListener('click', function () { if (current !== 'home') go('home'); setTimeout(focusCalc, 50); });
+    $('#calcBook').addEventListener('click', function () { go('book', '', { prefill: { serviceId: calc.serviceId, propertyType: calc.propertyType, rooms: calc.rooms } }); });
+
+    // ----- Услуги -----
+    function priceFrom(s) { return localQuote({ serviceId: s.id, propertyType: 'flat', rooms: 1, extras: {} }).subtotal; }
+    function renderServicesGrid() {
+      $('#servicesGrid').innerHTML = mains.map(function (s) {
+        return '<div class="svc" data-go="service" data-param="' + esc(s.id) + '">' +
+          '<div class="svc-icon">' + esc(s.icon || '✨') + '</div><h3>' + esc(s.name) + '</h3><p>' + esc(s.short) + '</p>' +
+          '<div class="price">от ' + money(priceFrom(s)) + '</div><div class="more">Что входит <span>→</span></div></div>';
+      }).join('');
+      $('#extrasStrip').innerHTML = '<span class="chip" style="background:var(--ink);color:#fff">Доп. услуги:</span>' + extras.map(function (s) {
+        return '<span class="chip">' + esc(s.icon || '') + ' ' + esc(s.name) + ' · ' + money(s.basePrice) + (s.unit ? '/' + esc(s.unit) : '') + '</span>';
+      }).join('');
+    }
+
+    function renderSteps() {
+      var steps = D.content.step || [];
+      $('#stepsGrid').innerHTML = steps.map(function (s) { return '<div class="step"><h3>' + esc(s.title) + '</h3><p>' + esc(s.text) + '</p></div>'; }).join('');
+    }
+
+    // ----- До / После -----
+    function renderGallery() {
+      var items = D.content.gallery || [];
+      if (!items.length) { $('#gallery').classList.add('hidden'); return; }
+      var set = function (i) {
+        var it = items[i];
+        var b = $('#baBefore'), a = $('#baAfter');
+        b.className = 'img before' + (it.image ? '' : ' ph-before');
+        a.className = 'img after' + (it.image2 ? '' : ' ph-after');
+        b.style.backgroundImage = it.image ? 'url("' + it.image + '")' : '';
+        a.style.backgroundImage = it.image2 ? 'url("' + it.image2 + '")' : '';
+        $$('button', $('#baList')).forEach(function (x, j) { x.classList.toggle('on', i === j); });
+        setBa(50);
+      };
+      $('#baList').innerHTML = items.map(function (it, i) { return '<button data-i="' + i + '">' + esc(it.title) + '</button>'; }).join('');
+      $('#baList').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) set(+b.getAttribute('data-i')); });
+      var setBa = function (v) { $('#baRange').value = v; $('#baBefore').style.clipPath = 'inset(0 ' + (100 - v) + '% 0 0)'; $('#baHandle').style.left = v + '%'; };
+      $('#baRange').addEventListener('input', function (e) { setBa(e.target.value); });
+      set(0);
+    }
+
+    // ----- Отзывы (карусель с автопрокруткой) -----
+    function renderReviews() {
+      var r = D.reviews;
+      var avg = r.length ? r.reduce(function (a, x) { return a + x.rating; }, 0) / r.length : 5;
+      D.stats.rating = Math.round(avg * 10) / 10;
+      $('#gAvg').textContent = D.stats.rating.toFixed(1).replace('.', ',');
+      $('#heroRating').textContent = D.stats.rating.toFixed(1).replace('.', ',');
+      $('#gCount').textContent = r.length + ' ' + plural(r.length, 'отзыв', 'отзыва', 'отзывов');
+      if (S.googleReviewsUrl) $('#gRating').href = S.googleReviewsUrl;
+      if (!r.length) { $('#reviewsTrack').innerHTML = '<div class="empty">Отзывов пока нет</div>'; return; }
+      $('#reviewsTrack').innerHTML = r.map(function (x) {
+        var av = x.avatar ? '<div class="avatar" style="background-image:url(\'' + esc(x.avatar) + '\')"></div>' : '<div class="avatar">' + esc((x.author || '?').charAt(0)) + '</div>';
+        return '<div class="review"><div class="review-head">' + av + '<div><b>' + esc(x.author) + '</b><div class="small muted">' +
+          (x.source === 'Google' ? '<span class="g-logo" style="font-size:.95rem">G</span> Google · ' : '') + esc(fmtDate(x.date)) + '</div></div></div>' +
+          '<div class="stars">' + '★★★★★'.slice(0, x.rating) + '<span style="color:#dfe5e3">' + '★★★★★'.slice(x.rating) + '</span></div><p>' + esc(x.text) + '</p></div>';
+      }).join('');
+      var track = $('#reviewsTrack');
+      var step = function (dir) {
+        var card = track.firstElementChild; if (!card) return;
+        var w = card.getBoundingClientRect().width + 20;
+        if (dir > 0 && track.scrollLeft + track.clientWidth >= track.scrollWidth - 5) track.scrollTo({ left: 0 });
+        else track.scrollBy({ left: dir * w });
+      };
+      $('#revPrev').onclick = function () { step(-1); };
+      $('#revNext').onclick = function () { step(1); };
+      var timer = setInterval(function () { if (current === 'home' && !document.hidden) step(1); }, 5000);
+      track.addEventListener('pointerdown', function () { clearInterval(timer); }, { once: true });
+    }
+
+    function renderTeam() {
+      if (!D.team.length) { $('#team').classList.add('hidden'); return; }
+      $('#teamGrid').innerHTML = D.team.map(function (m) {
+        var ph = m.photo ? '<div class="photo" style="background-image:url(\'' + esc(m.photo) + '\')"></div>' : '<div class="photo">' + esc((m.name || '?').charAt(0)) + '</div>';
+        return '<div class="member">' + ph + '<h3>' + esc(m.name) + '</h3><div class="small muted">' + esc(m.role) + '</div>' + (m.bio ? '<p class="small muted" style="margin-top:6px">' + esc(m.bio) + '</p>' : '') + '</div>';
+      }).join('');
+    }
+
+    function renderZones() {
+      var z = D.content.zone || [];
+      if (!z.length) { $('#zones').classList.add('hidden'); return; }
+      $('#zonesList').innerHTML = z.map(function (x) { return '<span class="chip" title="' + esc(x.text) + '">' + esc(x.title) + '</span>'; }).join('');
+    }
+
+    function renderFaq() {
+      $('#faqList').innerHTML = (D.content.faq || []).map(function (f) { return '<details><summary>' + esc(f.title) + '</summary><p>' + esc(f.text) + '</p></details>'; }).join('');
+    }
+
+    function renderContacts() {
+      var socials = [['instagram', 'Instagram'], ['telegram', 'Telegram'], ['whatsapp', 'WhatsApp'], ['vk', 'ВКонтакте']]
+        .filter(function (s) { return S[s[0]]; })
+        .map(function (s) { return '<a href="' + esc(S[s[0]]) + '" target="_blank" rel="noopener">' + s[1] + '</a>'; }).join('');
+      var tel = String(S.phone || '').replace(/[^\d+]/g, '');
+      $('#contactCard').innerHTML =
+        '<div class="contact-line"><i>📞</i><div><div class="small muted">Телефон</div><a href="tel:' + esc(tel) + '"><b>' + esc(S.phone) + '</b></a></div></div>' +
+        '<div class="contact-line"><i>✉️</i><div><div class="small muted">Email</div><a href="mailto:' + esc(S.email) + '"><b>' + esc(S.email) + '</b></a></div></div>' +
+        '<div class="contact-line"><i>📍</i><div><div class="small muted">Офис</div><b>' + esc(S.address) + '</b></div></div>' +
+        '<div class="contact-line"><i>🕗</i><div><div class="small muted">Часы работы</div><b>' + esc(S.workHoursText) + '</b></div></div>' +
+        '<div class="socials">' + socials + '</div>';
+      // Встраивание Google Maps без API-ключа
+      if (S.mapQuery) $('#map').innerHTML = '<iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=' + encodeURIComponent(S.mapQuery) + '&z=15&output=embed" title="Карта"></iframe>';
+    }
+
+    // ----- Анимированные счётчики и появление блоков при прокрутке -----
+    function initCounters() {
+      var animate = function (el) {
+        var key = el.getAttribute('data-count');
+        var target = Number(D.stats[key]) || 0;
+        var dec = +el.getAttribute('data-decimals') || 0;
+        var start = performance.now(), dur = 1600;
+        var tick = function (now) {
+          var p = Math.min(1, (now - start) / dur);
+          var v = target * (1 - Math.pow(1 - p, 3));
+          el.textContent = dec ? v.toFixed(dec).replace('.', ',') : Math.round(v).toLocaleString('ru-RU') + (p === 1 && key !== 'years' ? '+' : '');
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      };
+      if (!('IntersectionObserver' in window)) { $$('.reveal').forEach(function (el) { el.classList.add('in'); }); $$('[data-count]').forEach(animate); return; }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          en.target.classList.add('in');
+          $$('[data-count]', en.target).forEach(animate);
+          io.unobserve(en.target);
+        });
+      }, { threshold: .15 });
+      $$('.reveal').forEach(function (el) { io.observe(el); });
+    }
+
+    // =====================================================================
+    //  СТРАНИЦА УСЛУГИ
+    // =====================================================================
+    function renderService(id) {
+      var s = svcById(id) || mains[0];
+      var box = $('#serviceBody');
+      if (!s) { box.innerHTML = '<div class="empty">Услуга не найдена</div>'; return; }
+      var col = function (title, cls, items) {
+        return '<div class="card ' + cls + '"><h3>' + title + '</h3>' + (items.length ? '<ul>' + items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' : '<p class="muted">—</p>') + '</div>';
+      };
+      var roomsTable = [1, 2, 3, 4].map(function (n) {
+        return '<tr><td>' + n + '-комнатная квартира</td><td>' + money(localQuote({ serviceId: s.id, propertyType: 'flat', rooms: n, extras: {} }).subtotal) + '</td></tr>';
+      }).join('') + D.propertyTypes.filter(function (p) { return p.id !== 'flat'; }).map(function (p) {
+        return '<tr><td>' + esc(p.name) + ', 3 комнаты/зоны</td><td>' + money(localQuote({ serviceId: s.id, propertyType: p.id, rooms: 3, extras: {} }).subtotal) + '</td></tr>';
+      }).join('');
+      box.innerHTML =
+        '<a class="back" data-scroll="services">← Все услуги</a>' +
+        '<div class="svc-hero"><div><span class="eyebrow">Услуга</span><h1>' + esc(s.name) + '</h1><p class="hero-sub">' + esc(s.description || s.short) + '</p>' +
+        '<div class="hero-cta"><button class="btn btn-primary" id="svcBook">Записаться · от ' + money(priceFrom(s)) + '</button>' +
+        '<button class="btn btn-outline" id="svcCalc">Рассчитать точную цену</button></div></div>' +
+        '<div class="big-ic"' + (s.image ? ' style="background-image:url(\'' + esc(s.image) + '\')"' : '') + '>' + (s.image ? '' : esc(s.icon || '✨')) + '</div></div>' +
+        '<div class="grid incl">' + col('Что входит', 'yes', s.includes) + col('За доплату', 'plus', s.paidExtras) + col('Не входит', 'no', s.excludes) + '</div>' +
+        '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:4px">' +
+        '<div class="card"><h3>💰 Стоимость</h3><table class="price-table">' + roomsTable + '</table><p class="small muted" style="margin-top:12px">Средства и инвентарь включены. Минимальный заказ — ' + money(S.minOrder) + '.</p></div>' +
+        '<div class="card"><h3>➕ Дополнительные услуги</h3><table class="price-table">' + extras.map(function (x) { return '<tr><td>' + esc(x.icon || '') + ' ' + esc(x.name) + '</td><td>' + money(x.basePrice) + (x.unit ? ' / ' + esc(x.unit) : '') + '</td></tr>'; }).join('') + '</table></div></div>';
+      $('#svcBook').onclick = function () { go('book', '', { prefill: { serviceId: s.id } }); };
+      $('#svcCalc').onclick = function () { calc.serviceId = s.id; go('home'); renderCalc(); setTimeout(focusCalc, 60); };
+    }
+
+    // =====================================================================
+    //  КАЛЕНДАРЬ СО СВОБОДНЫМИ СЛОТАМИ (используется в записи и переносе)
+    // =====================================================================
+    function Calendar(root, opts) {
+      var now = new Date();
+      var minYm = now.getFullYear() * 12 + now.getMonth();
+      var last = new Date(); last.setDate(last.getDate() + (+S.bookingDaysAhead || 60));
+      var maxYm = last.getFullYear() * 12 + last.getMonth();
+      var ym = minYm, avail = {}, duration = opts.duration || 2;
+      var sel = { date: opts.date || '', time: opts.time || '' };
+      var reqId = 0;
+      if (sel.date) { var p = sel.date.split('-'); ym = Math.max(minYm, (+p[0]) * 12 + (+p[1] - 1)); }
+      var ymStr = function () { return Math.floor(ym / 12) + '-' + ('0' + (ym % 12 + 1)).slice(-2); };
+
+      root.innerHTML = '<div class="cal-head"><button data-a="prev">‹</button><b></b><button data-a="next">›</button></div>' +
+        '<div class="cal-grid"></div><div class="cal-legend"><span><i style="background:var(--mint-400)"></i>есть время</span><span><i style="background:var(--lemon-600)"></i>мало слотов</span><span><i style="background:#efc2bc"></i>всё занято</span></div>' +
+        '<div class="slot-wrap"></div>';
+      var grid = $('.cal-grid', root), slotsBox = $('.slot-wrap', root);
+
+      function render() {
+        var y = Math.floor(ym / 12), m = ym % 12;
+        $('.cal-head b', root).textContent = new Date(y, m, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+        $('[data-a=prev]', root).disabled = ym <= minYm;
+        $('[data-a=next]', root).disabled = ym >= maxYm;
+        var html = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(function (d) { return '<div class="wd">' + d + '</div>'; }).join('');
+        var offset = (new Date(y, m, 1).getDay() + 6) % 7;
+        for (var i = 0; i < offset; i++) html += '<div></div>';
+        var days = new Date(y, m + 1, 0).getDate();
+        for (var d = 1; d <= days; d++) {
+          var ds = y + '-' + ('0' + (m + 1)).slice(-2) + '-' + ('0' + d).slice(-2);
+          var n = avail[ds];
+          var cls = n === undefined || n < 0 ? 'closed' : n === 0 ? 'full' : n <= 3 ? 'free few' : 'free';
+          html += '<button class="d ' + cls + (sel.date === ds ? ' sel' : '') + '" data-d="' + ds + '"' + (cls.indexOf('free') < 0 ? ' disabled' : '') + '>' + d + '</button>';
+        }
+        grid.innerHTML = html;
+      }
+      function load() {
+        var my = ++reqId;
+        avail = {}; render(); root.classList.add('loading');
+        api('getMonthAvailability', ymStr(), duration, opts.excludeId || '').then(function (a) {
+          if (my !== reqId) return;
+          avail = a; root.classList.remove('loading'); render();
+          if (sel.date && sel.date.slice(0, 7) === ymStr()) loadSlots();
+        }).catch(function (e) { root.classList.remove('loading'); fail(e); });
+      }
+      function loadSlots() {
+        if (!sel.date) { slotsBox.innerHTML = ''; return; }
+        slotsBox.innerHTML = '<div class="center"><span class="spinner dark"></span></div>';
+        api('getDaySlots', sel.date, duration, opts.excludeId || '').then(function (slots) {
+          if (!slots.some(function (s) { return s.free && s.time === sel.time; })) { sel.time = ''; opts.onChange && opts.onChange(sel); }
+          slotsBox.innerHTML = '<div class="small muted" style="margin-top:16px">' + esc(fmtDate(sel.date)) + ' · уборка займёт ≈ ' + hours(duration) + '</div><div class="slots">' +
+            slots.map(function (s) { return '<button data-t="' + s.time + '"' + (s.free ? '' : ' disabled') + ' class="' + (sel.time === s.time ? 'on' : '') + '">' + s.time + '</button>'; }).join('') + '</div>';
+        }).catch(fail);
+      }
+      root.addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b || b.disabled) return;
+        e.preventDefault();
+        if (b.getAttribute('data-a') === 'prev') { ym--; load(); }
+        else if (b.getAttribute('data-a') === 'next') { ym++; load(); }
+        else if (b.hasAttribute('data-d')) { sel.date = b.getAttribute('data-d'); sel.time = ''; render(); loadSlots(); opts.onChange && opts.onChange(sel); }
+        else if (b.hasAttribute('data-t')) { sel.time = b.getAttribute('data-t'); $$('.slots button', root).forEach(function (x) { x.classList.toggle('on', x === b); }); opts.onChange && opts.onChange(sel); }
+      });
+      load();
+      return {
+        setDuration: function (d) { if (d !== duration) { duration = d; load(); } },
+        value: function () { return { date: sel.date, time: sel.time }; }
+      };
+    }
+
+    // =====================================================================
+    //  ОНЛАЙН-ЗАПИСЬ
+    // =====================================================================
+    var book = null;     // состояние формы
+    var bookCal = null;  // экземпляр календаря
+    var serverQuote = null;
+
+    function freshBooking(pre) {
+      pre = pre || {};
+      var prof = (account && account.profile) || {};
+      var exMap = {};
+      (pre.extras || []).forEach(function (e) { exMap[e.id] = e.qty; });
+      return {
+        propertyType: pre.propertyType || 'flat', rooms: pre.rooms || 2, serviceId: pre.serviceId || (mains[0] && mains[0].id),
+        extras: exMap, date: '', time: '', address: pre.address || prof.address || '', floor: pre.floor || 1,
+        elevator: pre.elevator !== undefined ? !!pre.elevator : true, pets: !!pre.pets, comment: '',
+        name: prof.name || '', phone: prof.phone || '', email: prof.email || '',
+        promoCode: pre.promoCode || '', certCode: '', useBonus: false
+      };
+    }
+
+    function renderBooking(prefill) {
+      if (!prefill && book && !book._done) { $('#bookBody').firstChild || drawBooking(); return; }
+      book = freshBooking(prefill);
+      serverQuote = null;
+      drawBooking();
+    }
+
+    function drawBooking() {
+      var b = book;
+      var box = $('#bookBody');
+      box.innerHTML =
+        '<a class="back" data-go="home">← На главную</a><h1 style="font-size:clamp(1.9rem,4vw,2.8rem)">Онлайн-запись</h1><p class="muted" style="margin-bottom:28px">Заполните форму — стоимость пересчитывается мгновенно.</p>' +
+        '<div class="book-grid"><div>' +
+        // 1. Услуга
+        '<div class="card"><h3><span class="n">1</span>Что убираем</h3>' +
+        '<div class="field"><label>Тип помещения</label><div class="seg" id="bType">' + D.propertyTypes.map(function (p) { return '<button data-v="' + p.id + '" class="' + (b.propertyType === p.id ? 'on' : '') + '">' + esc(p.name) + '</button>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>Количество комнат</label><div class="stepper"><button data-r="-1">−</button><span id="bRooms">' + b.rooms + '</span><button data-r="1">+</button></div></div>' +
+        '<div class="field"><label>Тип уборки</label><div class="svc-pick" id="bSvc">' + mains.map(function (s) {
+          return '<button data-v="' + esc(s.id) + '" class="' + (String(b.serviceId) === String(s.id) ? 'on' : '') + '"><span style="font-size:1.5rem">' + esc(s.icon || '') + '</span><b>' + esc(s.name) + '</b><span class="small muted">' + esc(s.short) + '</span></button>';
+        }).join('') + '</div><a class="small" id="bSvcInfo" style="cursor:pointer;margin-top:6px">Что входит в выбранную уборку?</a></div></div>' +
+        // 2. Доп. услуги
+        '<div class="card"><h3><span class="n">2</span>Дополнительные услуги</h3><div id="bExtras">' + extras.map(function (s) {
+          var q = b.extras[s.id] || 0;
+          return '<div class="extra-row"><div class="e-ic">' + esc(s.icon || '＋') + '</div><div class="e-name"><b>' + esc(s.name) + '</b><small>' + esc(s.short || '') + ' · ' + money(s.basePrice) + (s.unit ? ' / ' + esc(s.unit) : '') + '</small></div>' +
+            '<div class="stepper"><button data-x="' + esc(s.id) + '" data-d="-1">−</button><span id="xq-' + esc(s.id) + '">' + q + '</span><button data-x="' + esc(s.id) + '" data-d="1">+</button></div></div>';
+        }).join('') + '</div></div>' +
+        // 3. Дата и время
+        '<div class="card"><h3><span class="n">3</span>Дата и время</h3><div id="bCal"></div></div>' +
+        // 4. Адрес
+        '<div class="card"><h3><span class="n">4</span>Адрес и детали</h3>' +
+        '<div class="field"><label>Адрес (улица, дом, квартира)</label><input class="input" id="bAddress" value="' + esc(b.address) + '" placeholder="ул. Токтогула, 125, кв. 14" autocomplete="street-address"></div>' +
+        '<div class="row2"><div class="field"><label>Этаж</label><input class="input" id="bFloor" type="number" min="1" max="100" value="' + esc(b.floor) + '"></div>' +
+        '<div class="field" style="justify-content:flex-end;gap:12px"><label class="switch"><input type="checkbox" id="bElevator"' + (b.elevator ? ' checked' : '') + '><i></i>Есть лифт</label>' +
+        '<label class="switch"><input type="checkbox" id="bPets"' + (b.pets ? ' checked' : '') + '><i></i>Есть домашние животные</label></div></div>' +
+        '<div class="field"><label>Комментарий (код домофона, пожелания)</label><textarea class="input" id="bComment" placeholder="Например: аллергия на хлор, ключи у консьержа">' + esc(b.comment) + '</textarea></div></div>' +
+        // 5. Контакты
+        '<div class="card"><h3><span class="n">5</span>Контакты</h3>' +
+        '<div class="field"><label>Имя</label><input class="input" id="bName" value="' + esc(b.name) + '" autocomplete="name"></div>' +
+        '<div class="row2"><div class="field"><label>Телефон</label><input class="input" id="bPhone" type="tel" value="' + esc(b.phone) + '" placeholder="+996 700 123 456" autocomplete="tel"></div>' +
+        '<div class="field"><label>Email (для входа в кабинет)</label><input class="input" id="bEmail" type="email" value="' + esc(b.email) + '" placeholder="you@gmail.com" autocomplete="email"></div></div>' +
+        (token ? '' : '<p class="small muted" style="margin:0">Уже заказывали? <a data-go="account" style="cursor:pointer">Войдите</a>, чтобы использовать бонусы.</p>') + '</div>' +
+        '</div>' +
+        // Итог
+        '<div class="summary"><div class="card"><h3>Ваш заказ</h3><div id="bLines"></div>' +
+        '<div class="field" style="margin-top:16px"><label>Промокод или реферальный код</label><div style="display:flex;gap:8px"><input class="input" id="bPromo" value="' + esc(b.promoCode) + '" placeholder="WELCOME10" style="text-transform:uppercase"><button class="btn btn-ghost btn-sm" id="bPromoBtn">OK</button></div></div>' +
+        '<div class="field"><label>Подарочный сертификат</label><div style="display:flex;gap:8px"><input class="input" id="bCert" value="' + esc(b.certCode) + '" placeholder="GIFT-XXXX-XXXX" style="text-transform:uppercase"><button class="btn btn-ghost btn-sm" id="bCertBtn">OK</button></div></div>' +
+        (token ? '<label class="switch" style="margin-bottom:8px"><input type="checkbox" id="bBonus"' + (b.useBonus ? ' checked' : '') + '><i></i>Списать бонусы <span class="muted small" id="bBonusAvail"></span></label>' : '') +
+        '<div id="bMsgs"></div><div id="bTotal"></div>' +
+        '<button class="btn btn-primary btn-block" id="bSubmit" style="margin-top:16px">Проверить и записаться</button>' +
+        '<p class="small muted" style="margin:12px 0 0;text-align:center">Оплата после уборки · бесплатная отмена за ' + esc(S.cancelHours) + ' ч</p></div></div></div>';
+
+      bookCal = Calendar($('#bCal'), { duration: localQuote(book).duration, date: b.date, time: b.time, onChange: function (v) { book.date = v.date; book.time = v.time; } });
+      bindBooking();
+      updateSummary();
+    }
+
+    function bindBooking() {
+      var box = $('#bookBody');
+      $('#bType').addEventListener('click', function (e) { var t = e.target.closest('button'); if (!t) return; book.propertyType = t.getAttribute('data-v'); $$('#bType button').forEach(function (x) { x.classList.toggle('on', x === t); }); changed(); });
+      $('#bSvc').addEventListener('click', function (e) { var t = e.target.closest('button'); if (!t) return; book.serviceId = t.getAttribute('data-v'); $$('#bSvc button').forEach(function (x) { x.classList.toggle('on', x === t); }); changed(); });
+      $('#bSvcInfo').onclick = function () {
+        var s = svcById(book.serviceId);
+        modal('<h3>' + esc(s.name) + '</h3><div class="incl"><b>Входит:</b><ul class="yes" style="list-style:none;padding:0">' + s.includes.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' +
+          (s.excludes.length ? '<b>Не входит:</b><ul class="no" style="list-style:none;padding:0">' + s.excludes.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' : '') + '</div>');
+      };
+      // onclick, а не addEventListener: #bookBody переживает перерисовки, обработчик не должен дублироваться
+      box.onclick = function (e) {
+        var r = e.target.closest('[data-r]');
+        if (r) { book.rooms = Math.max(1, Math.min(20, book.rooms + (+r.getAttribute('data-r')))); $('#bRooms').textContent = book.rooms; changed(); }
+        var x = e.target.closest('[data-x]');
+        if (x) {
+          var id = x.getAttribute('data-x');
+          book.extras[id] = Math.max(0, Math.min(50, (book.extras[id] || 0) + (+x.getAttribute('data-d'))));
+          $('#xq-' + id).textContent = book.extras[id];
+          changed();
+        }
+      };
+      var bindInput = function (id, key, type) {
+        var el = $('#' + id); if (!el) return;
+        el.addEventListener(type === 'check' ? 'change' : 'input', function () {
+          book[key] = type === 'check' ? el.checked : el.value;
+          if (key === 'floor' || key === 'elevator' || key === 'pets' || key === 'useBonus') changed();
+        });
+      };
+      bindInput('bAddress', 'address'); bindInput('bFloor', 'floor'); bindInput('bElevator', 'elevator', 'check'); bindInput('bPets', 'pets', 'check');
+      bindInput('bComment', 'comment'); bindInput('bName', 'name'); bindInput('bPhone', 'phone'); bindInput('bEmail', 'email');
+      bindInput('bPromo', 'promoCode'); bindInput('bCert', 'certCode'); bindInput('bBonus', 'useBonus', 'check');
+      $('#bPromoBtn').onclick = function () { checkQuote(true); };
+      $('#bCertBtn').onclick = function () { checkQuote(true); };
+      $('#bPromo').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkQuote(true); });
+      $('#bCert').addEventListener('keydown', function (e) { if (e.key === 'Enter') checkQuote(true); });
+      $('#bSubmit').onclick = submitBooking;
+    }
+
+    var debouncedQuote = debounce(function () { checkQuote(false); }, 600);
+    function changed() {
+      updateSummary();
+      bookCal && bookCal.setDuration(localQuote(book).duration);
+      if (serverQuote || book.useBonus) debouncedQuote();
+    }
+
+    function bookPayload() {
+      var ex = Object.keys(book.extras).filter(function (k) { return book.extras[k] > 0; }).map(function (k) { return { id: k, qty: book.extras[k] }; });
+      return {
+        serviceId: book.serviceId, propertyType: book.propertyType, rooms: book.rooms, extras: ex, pets: book.pets, floor: book.floor,
+        elevator: book.elevator, promoCode: book.promoCode, certCode: book.certCode, useBonus: book.useBonus,
+        date: book.date, time: book.time, address: book.address, comment: book.comment, name: book.name, phone: book.phone, email: book.email
+      };
+    }
+
+    /** Мгновенный локальный расчёт + скидки из последнего серверного расчёта */
+    function updateSummary() {
+      var q = localQuote(book);
+      $('#bLines').innerHTML = q.lines.map(function (l) { return '<div class="line"><span>' + esc(l.name) + '</span><span>' + money(l.amount) + '</span></div>'; }).join('') +
+        '<div class="line"><span>Время работы</span><span>≈ ' + hours(q.duration) + '</span></div>';
+      var sq = serverQuote, total = q.subtotal, extra = '';
+      if (sq && sq.subtotal === q.subtotal) {
+        if (sq.discount) extra += '<div class="line disc"><span>' + esc(sq.discountLabel) + '</span><span>−' + money(sq.discount) + '</span></div>';
+        if (sq.certApplied) extra += '<div class="line disc"><span>Сертификат</span><span>−' + money(sq.certApplied) + '</span></div>';
+        if (sq.bonusApplied) extra += '<div class="line disc"><span>Бонусы</span><span>−' + money(sq.bonusApplied) + '</span></div>';
+        total = sq.total;
+      }
+      $('#bTotal').innerHTML = extra + '<div class="total"><span>Итого</span><span>' + money(total) + '</span></div>';
+      if (sq && $('#bBonusAvail')) $('#bBonusAvail').textContent = '(доступно ' + money(sq.bonusAvailable) + ')';
+    }
+
+    function showMsgs(list) {
+      $('#bMsgs').innerHTML = (list || []).map(function (m) { return '<div class="msg ' + m.type + '">' + esc(m.text) + '</div>'; }).join('');
+    }
+
+    function checkQuote(explicit) {
+      if (!book.promoCode && !book.certCode && !book.useBonus) { serverQuote = null; showMsgs([]); updateSummary(); return Promise.resolve(null); }
+      return api('getQuote', bookPayload(), token).then(function (q) {
+        serverQuote = q; showMsgs(q.messages); updateSummary(); return q;
+      }).catch(function (e) { if (explicit) fail(e); });
+    }
+
+    function submitBooking() {
+      var b = book, btn = $('#bSubmit');
+      var err = !b.date || !b.time ? 'Выберите дату и время уборки' :
+        !String(b.address).trim() ? 'Укажите адрес' :
+        !String(b.name).trim() ? 'Укажите имя' :
+        String(b.phone).replace(/\D/g, '').length < 10 ? 'Укажите телефон' :
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email).trim()) ? 'Укажите корректный email' : '';
+      if (err) { toast(err, true); return; }
+      busy(btn, true);
+      // Подтверждение стоимости с сервера перед отправкой
+      api('getQuote', bookPayload(), token).then(function (q) {
+        busy(btn, false);
+        serverQuote = q; showMsgs(q.messages); updateSummary();
+        var errors = q.messages.filter(function (m) { return m.type === 'error'; });
+        if (errors.length) { toast(errors[0].text + '. Очистите поле или исправьте код.', true); return; }
+        modal('<h3>Подтвердите заказ</h3><p class="muted">' + esc(fmtDate(b.date)) + ', ' + esc(b.time) + ' · ' + esc(b.address) + '</p><div class="summary">' +
+          q.lines.map(function (l) { return '<div class="line"><span>' + esc(l.name) + '</span><span>' + money(l.amount) + '</span></div>'; }).join('') +
+          (q.discount ? '<div class="line disc"><span>' + esc(q.discountLabel) + '</span><span>−' + money(q.discount) + '</span></div>' : '') +
+          (q.certApplied ? '<div class="line disc"><span>Сертификат</span><span>−' + money(q.certApplied) + '</span></div>' : '') +
+          (q.bonusApplied ? '<div class="line disc"><span>Бонусы</span><span>−' + money(q.bonusApplied) + '</span></div>' : '') +
+          '<div class="total"><span>К оплате</span><span>' + money(q.total) + '</span></div></div>' +
+          '<p class="small muted">Длительность ≈ ' + hours(q.duration) + '. Оплата после уборки.</p><button class="btn btn-primary btn-block" id="mConfirm">Подтвердить запись</button>',
+          function (m, close) {
+            $('#mConfirm', m).onclick = function () {
+              var cb = this; busy(cb, true);
+              api('createBooking', bookPayload(), token).then(function (res) {
+                close(); book._done = true; showBookingSuccess(res);
+              }).catch(function (e) { busy(cb, false); fail(e); if (/занял/.test(e.message)) { close(); bookCal.setDuration(-1); bookCal.setDuration(q.duration); } });
+            };
+          });
+      }).catch(function (e) { busy(btn, false); fail(e); });
+    }
+
+    function showBookingSuccess(res) {
+      $('#bookBody').innerHTML = '<div class="success"><div class="check">✓</div><h2>Заявка принята!</h2>' +
+        '<p class="muted">Номер заказа <b>' + esc(res.id) + '</b>. ' + esc(fmtDate(res.date)) + ' в ' + esc(res.time) + ', к оплате ' + money(res.total) + '.</p>' +
+        '<p class="muted">Мы отправили подтверждение на <b>' + esc(res.email) + '</b> и скоро свяжемся с вами. Статус заказа можно отслеживать в личном кабинете.</p>' +
+        '<div class="hero-cta" style="justify-content:center;margin-top:24px"><button class="btn btn-lemon" data-go="account">Личный кабинет</button><button class="btn btn-outline" data-go="home">На главную</button></div></div>';
+      window.scrollTo(0, 0);
+      if (account) loadAccount();
+    }
+
+    // =====================================================================
+    //  ПОДАРОЧНЫЕ СЕРТИФИКАТЫ
+    // =====================================================================
+    function renderGift() {
+      var g = { amount: 3000 };
+      $('#giftBody').innerHTML = '<a class="back" data-go="home">← На главную</a>' +
+        '<div class="gift-grid"><div><span class="eyebrow">Подарок</span><h1 style="font-size:clamp(1.9rem,4vw,2.8rem)">Подарочный сертификат</h1>' +
+        '<p class="hero-sub">Подарите время на отдых. Сертификатом можно оплатить любую уборку полностью или частично в течение года.</p>' +
+        '<div class="gift-card"><div style="display:flex;justify-content:space-between;align-items:center;position:relative"><b>' + esc(S.companyName) + '</b><span>🎁</span></div>' +
+        '<div style="position:relative"><div class="small" style="opacity:.8" id="gTo">Подарочный сертификат</div><div class="amt" id="gAmt">' + money(g.amount) + '</div><div class="msg-prev" id="gMsg"></div></div></div></div>' +
+        '<div class="card"><h3>Оформление</h3><div class="field"><label>Номинал</label><div class="seg" id="gAmounts">' +
+        [2000, 3000, 5000, 7000, 10000].map(function (a) { return '<button data-a="' + a + '" class="' + (a === g.amount ? 'on' : '') + '">' + money(a) + '</button>'; }).join('') +
+        '</div><input class="input" id="gCustom" type="number" min="1000" step="500" placeholder="Своя сумма" style="margin-top:8px"></div>' +
+        '<div class="row2"><div class="field"><label>Кому (имя)</label><input class="input" id="gRecipient" placeholder="Маме"></div><div class="field"><label>Email получателя (необязательно)</label><input class="input" id="gRecEmail" type="email"></div></div>' +
+        '<div class="field"><label>Поздравление</label><textarea class="input" id="gMessage" maxlength="300" placeholder="С днём рождения! Отдыхай, а уборку оставь профессионалам ❤️"></textarea></div>' +
+        '<div class="field"><label>Ваше имя</label><input class="input" id="gBuyer"></div>' +
+        '<div class="row2"><div class="field"><label>Ваш телефон</label><input class="input" id="gPhone" type="tel"></div><div class="field"><label>Ваш email</label><input class="input" id="gEmail" type="email"></div></div>' +
+        '<button class="btn btn-primary btn-block" id="gSubmit">Оформить сертификат</button><p class="small muted" style="margin:12px 0 0">Менеджер свяжется для оплаты. После оплаты сертификат придёт на email.</p></div></div>';
+      var upd = function () {
+        $('#gAmt').textContent = money(g.amount);
+        $('#gTo').textContent = $('#gRecipient').value ? 'Для: ' + $('#gRecipient').value : 'Подарочный сертификат';
+        $('#gMsg').textContent = $('#gMessage').value ? '«' + $('#gMessage').value + '»' : '';
+      };
+      $('#gAmounts').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; g.amount = +b.getAttribute('data-a'); $('#gCustom').value = ''; $$('#gAmounts button').forEach(function (x) { x.classList.toggle('on', x === b); }); upd(); };
+      $('#gCustom').oninput = function () { var v = +this.value; if (v) { g.amount = v; $$('#gAmounts button').forEach(function (x) { x.classList.remove('on'); }); } upd(); };
+      $('#gRecipient').oninput = upd; $('#gMessage').oninput = upd;
+      if (account) { $('#gBuyer').value = account.profile.name || ''; $('#gPhone').value = account.profile.phone || ''; $('#gEmail').value = account.profile.email || ''; }
+      $('#gSubmit').onclick = function () {
+        var btn = this; busy(btn, true);
+        api('buyCertificate', { amount: g.amount, recipientName: $('#gRecipient').value, recipientEmail: $('#gRecEmail').value, message: $('#gMessage').value, buyerName: $('#gBuyer').value, buyerPhone: $('#gPhone').value, buyerEmail: $('#gEmail').value })
+          .then(function (r) {
+            $('#giftBody').innerHTML = '<div class="success"><div class="check">🎁</div><h2>Заявка оформлена</h2><p class="muted">Сертификат <b>' + esc(r.code) + '</b> на ' + money(r.amount) +
+              ' будет активирован после оплаты. Менеджер свяжется с вами в ближайшее время.</p><button class="btn btn-primary" data-go="home">На главную</button></div>';
+          }).catch(function (e) { busy(btn, false); fail(e); });
+      };
+    }
+
+    // =====================================================================
+    //  ЛИЧНЫЙ КАБИНЕТ
+    // =====================================================================
+    var account = null;
+    var accTab = 'orders';
+
+    function renderAccount() {
+      if (!token) { renderLogin(); return; }
+      if (!account) { $('#accountBody').innerHTML = '<div class="center"><span class="spinner dark"></span></div>'; loadAccount(); return; }
+      drawAccount();
+    }
+
+    function loadAccount() {
+      return api('getAccount', token).then(function (a) { account = a; if (current === 'account') drawAccount(); })
+        .catch(function (e) { account = null; if (!token) { if (current === 'account') renderLogin(); } else fail(e); });
+    }
+
+    function renderLogin() {
+      var box = $('#accountBody');
+      box.innerHTML = '<div style="max-width:440px;margin:20px auto"><div class="card" style="padding:36px"><h2>Вход в кабинет</h2>' +
+        '<p class="muted">Введите телефон или email, указанный при заказе. Мы отправим код на почту.</p>' +
+        '<div id="lStep1"><div class="field"><label>Телефон или email</label><input class="input" id="lId" placeholder="+996 700 123 456 или you@gmail.com" value="' + esc(store('cc_login') || '') + '"></div>' +
+        '<button class="btn btn-primary btn-block" id="lSend">Получить код</button></div>' +
+        '<div id="lStep2" class="hidden"><p class="msg ok" id="lSent"></p><div class="field"><label>Код из письма</label><input class="input" id="lCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="font-size:1.4rem;letter-spacing:.4em;text-align:center"></div>' +
+        '<button class="btn btn-primary btn-block" id="lVerify">Войти</button><button class="btn btn-block" id="lBack" style="margin-top:6px">← Изменить</button></div>' +
+        '<p class="small muted" style="margin:18px 0 0;text-align:center">Ещё не заказывали? <a data-go="book" style="cursor:pointer">Оформите первый заказ</a> — кабинет создастся автоматически.</p></div></div>';
+      var send = function () {
+        var id = $('#lId').value.trim(); if (!id) { toast('Введите телефон или email', true); return; }
+        var btn = $('#lSend'); busy(btn, true);
+        api('requestLoginCode', id).then(function (r) {
+          busy(btn, false); store('cc_login', id);
+          $('#lStep1').classList.add('hidden'); $('#lStep2').classList.remove('hidden');
+          $('#lSent').textContent = 'Код отправлен на ' + r.sentTo; $('#lCode').focus();
+        }).catch(function (e) { busy(btn, false); fail(e); });
+      };
+      var verify = function () {
+        var btn = $('#lVerify'); busy(btn, true);
+        api('verifyLoginCode', $('#lId').value.trim(), $('#lCode').value.trim()).then(function (r) {
+          setToken(r.token); account = null; renderAccount();
+        }).catch(function (e) { busy(btn, false); fail(e); });
+      };
+      $('#lSend').onclick = send; $('#lVerify').onclick = verify;
+      $('#lId').onkeydown = function (e) { if (e.key === 'Enter') send(); };
+      $('#lCode').onkeydown = function (e) { if (e.key === 'Enter') verify(); };
+      $('#lCode').oninput = function () { if (this.value.replace(/\D/g, '').length === 6) verify(); };
+      $('#lBack').onclick = function () { $('#lStep2').classList.add('hidden'); $('#lStep1').classList.remove('hidden'); };
+    }
+
+    var STATUS_CLASS = {};
+    STATUS_CLASS[ST.NEW] = 's-new'; STATUS_CLASS[ST.ASSIGNED] = 's-assigned'; STATUS_CLASS[ST.IN_PROGRESS] = 's-progress'; STATUS_CLASS[ST.DONE] = 's-done'; STATUS_CLASS[ST.CANCELLED] = 's-cancel';
+
+    function drawAccount() {
+      var a = account, p = a.profile;
+      var box = $('#accountBody');
+      box.innerHTML = '<div class="acc-head"><div><span class="eyebrow">Личный кабинет</span><h1 style="font-size:clamp(1.8rem,4vw,2.6rem);margin:0">Здравствуйте, ' + esc(String(p.name || '').split(' ')[0]) + (p.vip ? ' <span class="badge" style="background:var(--lemon)">VIP</span>' : '') + '</h1></div>' +
+        '<div style="display:flex;gap:8px"><button class="btn btn-primary" data-go="book">+ Новый заказ</button><button class="btn btn-outline" id="aLogout">Выйти</button></div></div>' +
+        '<div class="tabs" id="aTabs"><button data-t="orders">Мои заказы</button><button data-t="bonus">Бонусы и друзья</button><button data-t="profile">Профиль</button></div><div id="aBody"></div>';
+      $('#aLogout').onclick = function () { api('logoutClient', token).catch(function () {}); setToken(null); account = null; renderLogin(); };
+      $('#aTabs').onclick = function (e) { var b = e.target.closest('button'); if (b) { accTab = b.getAttribute('data-t'); drawTab(); } };
+      drawTab();
+    }
+
+    function drawTab() {
+      $$('#aTabs button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-t') === accTab); });
+      var a = account, body = $('#aBody');
+      if (accTab === 'orders') {
+        if (!a.orders.length) { body.innerHTML = '<div class="card empty">У вас пока нет заказов.<br><br><button class="btn btn-primary" data-go="book">Записаться на уборку</button></div>'; return; }
+        body.innerHTML = a.orders.map(function (o) {
+          var acts = '';
+          if (o.canReschedule) acts += '<button class="btn btn-outline btn-sm" data-act="move" data-id="' + esc(o.id) + '">Перенести</button>';
+          if (o.canCancel) acts += '<button class="btn btn-danger btn-sm" data-act="cancel" data-id="' + esc(o.id) + '">Отменить</button>';
+          if (o.canRate) acts += '<button class="btn btn-primary btn-sm" data-act="rate" data-id="' + esc(o.id) + '">★ Оценить</button>';
+          acts += '<button class="btn btn-ghost btn-sm" data-act="repeat" data-id="' + esc(o.id) + '">↻ Заказать снова</button>';
+          return '<div class="card order"><div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="badge ' + (STATUS_CLASS[o.status] || '') + '">' + esc(o.status) + '</span><span class="small muted">№ ' + esc(o.id) + '</span></div>' +
+            '<h3 style="margin:10px 0 0">' + esc(o.serviceName) + ' · ' + esc(o.propertyType) + ', ' + o.rooms + ' комн.</h3>' +
+            '<div class="order-meta"><span>📅 ' + esc(fmtDate(o.date)) + ', ' + esc(o.time) + '</span><span>📍 ' + esc(o.address) + '</span>' + (o.employeeName ? '<span>👤 ' + esc(o.employeeName) + '</span>' : '') + (o.extrasText ? '<span>➕ ' + esc(o.extrasText) + '</span>' : '') + '</div>' +
+            (o.rating ? '<div class="small"><span class="stars">' + '★★★★★'.slice(0, o.rating) + '</span> ' + esc(o.review || '') + '</div>' : '') +
+            '<div class="order-actions">' + acts + '</div></div><div class="price-big">' + money(o.total) + '</div></div>';
+        }).join('');
+        body.onclick = function (e) {
+          var b = e.target.closest('[data-act]'); if (!b) return;
+          var o = a.orders.find(function (x) { return x.id === b.getAttribute('data-id'); });
+          ({ cancel: cancelOrder, move: moveOrder, rate: rateOrder, repeat: repeatOrder })[b.getAttribute('data-act')](o);
+        };
+      } else if (accTab === 'bonus') {
+        var link = (BOOT_URL || '') ;
+        body.innerHTML = '<div class="bonus-hero"><div><div class="small" style="opacity:.75">Бонусный баланс</div><div class="big">' + money(a.bonus) + '</div>' +
+          '<p style="opacity:.75;margin:12px 0 0" class="small">' + esc(S.bonusPercent) + '% от каждого заказа возвращается бонусами. Оплачивайте ими до ' + esc(S.maxBonusPercent) + '% следующей уборки.</p></div>' +
+          '<div><div class="small" style="opacity:.75">Ваш реферальный код</div><div class="ref-code"><code>' + esc(a.profile.referralCode) + '</code><button class="btn btn-primary btn-sm" id="copyRef">Копировать</button></div>' +
+          '<p style="opacity:.75;margin:12px 0 0" class="small">Друг получит скидку ' + esc(S.referralDiscount) + '% на первую уборку, а вы — ' + money(S.referralBonus) + ' бонусами после её выполнения.</p></div></div>' +
+          '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:20px">' +
+          '<div class="card"><h3>Приглашённые друзья (' + a.friends.length + ')</h3>' + (a.friends.length ? a.friends.map(function (f) {
+            return '<div class="line" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>' + esc(f.name) + ' <span class="small muted">· ' + esc(f.date) + '</span></span><span class="badge ' + (f.rewarded ? 's-done' : 's-new') + '">' + (f.rewarded ? 'Бонус получен' : 'Ждём первый заказ') + '</span></div>';
+          }).join('') : '<p class="muted">Поделитесь кодом с друзьями — и получайте бонусы.</p>') + '</div>' +
+          '<div class="card"><h3>История бонусов</h3>' + (a.bonusHistory.length ? a.bonusHistory.map(function (h) {
+            return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>' + esc(h.reason) + ' <span class="small muted">· ' + esc(String(h.date).slice(0, 10)) + '</span></span><b style="color:' + (h.amount > 0 ? 'var(--ok)' : 'var(--danger)') + '">' + (h.amount > 0 ? '+' : '') + money(h.amount) + '</b></div>';
+          }).join('') : '<p class="muted">Пока пусто</p>') + '</div></div>';
+        $('#copyRef').onclick = function () {
+          var txt = 'Мой код на скидку ' + S.referralDiscount + '% в ' + S.companyName + ': ' + a.profile.referralCode + (link ? ' — ' + link : '');
+          (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast('Скопировано!'); }).catch(function () { prompt('Скопируйте:', txt); });
+        };
+      } else {
+        var p = a.profile;
+        body.innerHTML = '<div class="card" style="max-width:560px"><h3>Профиль</h3>' +
+          [['Имя', p.name], ['Телефон', p.phone], ['Email', p.email], ['Адрес', p.address]].map(function (r) {
+            return '<div style="display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)"><span class="muted">' + r[0] + '</span><b style="text-align:right">' + esc(r[1] || '—') + '</b></div>';
+          }).join('') + '<p class="small muted" style="margin:16px 0 0">Чтобы изменить данные, позвоните нам: ' + esc(S.phone) + '</p></div>';
+      }
+    }
+
+    function cancelOrder(o) {
+      var reasons = ['Изменились планы', 'Перенесу на другую дату', 'Нашёл другого исполнителя', 'Дорого', 'Другое'];
+      modal('<h3>Отменить заказ №' + esc(o.id) + '?</h3><p class="muted">' + esc(fmtDate(o.date)) + ', ' + esc(o.time) + '</p><div class="field"><label>Причина</label><div class="seg" id="cReasons">' +
+        reasons.map(function (r) { return '<button>' + esc(r) + '</button>'; }).join('') + '</div></div><div class="field"><textarea class="input" id="cText" placeholder="Комментарий (необязательно)"></textarea></div>' +
+        '<button class="btn btn-danger btn-block" id="cGo">Отменить заказ</button>', function (m, close) {
+          var reason = '';
+          $('#cReasons', m).onclick = function (e) { var b = e.target.closest('button'); if (!b) return; reason = b.textContent; $$('#cReasons button', m).forEach(function (x) { x.classList.toggle('on', x === b); }); };
+          $('#cGo', m).onclick = function () {
+            var full = [reason, $('#cText', m).value.trim()].filter(String).join(': ');
+            if (!full) { toast('Укажите причину', true); return; }
+            var btn = this; busy(btn, true);
+            api('cancelMyOrder', token, o.id, full).then(function () { close(); toast('Заказ отменён'); loadAccount(); }).catch(function (e) { busy(btn, false); fail(e); });
+          };
+        });
+    }
+
+    function moveOrder(o) {
+      var pick = { date: o.date, time: o.time };
+      modal('<h3>Перенос заказа №' + esc(o.id) + '</h3><p class="muted small">Сейчас: ' + esc(fmtDate(o.date)) + ', ' + esc(o.time) + '</p><div id="mCal"></div><button class="btn btn-primary btn-block" id="mGo" style="margin-top:18px">Перенести</button>', function (m, close) {
+        Calendar($('#mCal', m), { duration: o.duration, date: o.date, time: o.time, excludeId: o.id, onChange: function (v) { pick = v; } });
+        $('#mGo', m).onclick = function () {
+          if (!pick.date || !pick.time) { toast('Выберите дату и время', true); return; }
+          var btn = this; busy(btn, true);
+          api('rescheduleMyOrder', token, o.id, pick.date, pick.time).then(function () { close(); toast('Заказ перенесён'); loadAccount(); }).catch(function (e) { busy(btn, false); fail(e); });
+        };
+      });
+    }
+
+    function rateOrder(o) {
+      var rating = 5;
+      modal('<h3>Как прошла уборка?</h3><p class="muted">' + esc(o.serviceName) + ' · ' + esc(fmtDate(o.date)) + (o.employeeName ? ' · ' + esc(o.employeeName) : '') + '</p>' +
+        '<div class="star-pick" id="rStars">' + [1, 2, 3, 4, 5].map(function (n) { return '<button data-n="' + n + '" class="on">★</button>'; }).join('') + '</div>' +
+        '<div class="field"><textarea class="input" id="rText" placeholder="Расскажите, что понравилось или что улучшить"></textarea></div><button class="btn btn-primary btn-block" id="rGo">Отправить отзыв</button>', function (m, close) {
+          $('#rStars', m).onclick = function (e) { var b = e.target.closest('button'); if (!b) return; rating = +b.getAttribute('data-n'); $$('#rStars button', m).forEach(function (x) { x.classList.toggle('on', +x.getAttribute('data-n') <= rating); }); };
+          $('#rGo', m).onclick = function () {
+            var btn = this; busy(btn, true);
+            api('rateMyOrder', token, o.id, rating, $('#rText', m).value).then(function () { close(); toast('Спасибо за отзыв! 💚'); loadAccount(); }).catch(function (e) { busy(btn, false); fail(e); });
+          };
+        });
+    }
+
+    /** «Заказать снова» — открывает форму записи с параметрами прошлого заказа */
+    function repeatOrder(o) {
+      go('book', '', { prefill: { serviceId: o.serviceId, propertyType: ptByName(o.propertyType).id, rooms: o.rooms, extras: o.extras, address: o.address, floor: o.floor, elevator: o.elevator, pets: o.pets } });
+      toast('Параметры заказа скопированы — выберите дату');
+    }
+
+    var BOOT_URL = '<?= appUrl ?>';
+
+    // =====================================================================
+    //  СТАРТ
+    // =====================================================================
+    renderHome();
+    if (token) loadAccount();
+    if (window.google && google.script && google.script.url) {
+      google.script.url.getLocation(function (loc) {
+        var h = String(loc.hash || '');
+        var m = h.match(/^(home|service|book|gift|account)(?:-(.+))?$/);
+        if (m && m[1] !== 'home') go(m[1], m[2], { silent: true });
+        else go('home', '', { silent: true });
+      });
+      google.script.history.setChangeHandler(function (e) {
+        var st = e.state || {};
+        go(st.view || 'home', st.param, { silent: true });
+      });
+    } else {
+      go('home', '', { silent: true });
+    }
+  })();
+  </script>
+</body>
+</html>

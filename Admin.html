@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <!--
+    Админская часть CleanCRM: дашборд, заказы, клиенты, сотрудники,
+    услуги и цены, маркетинг, отзывы, контент сайта, отчёты, настройки.
+    Все запросы идут через единый серверный метод adminApi(token, action, data).
+    Графики рисуются на чистом SVG — без внешних библиотек.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* =====================================================================
+       CRM в стиле «Свежесть и чистота» — тот же язык, что и у сайта:
+       белые карточки, мятные поверхности, лимонные акценты, Unbounded + Onest.
+       ===================================================================== */
+    :root {
+      --ink: #12302b; --ink-2: #4b6560; --ink-3: #8fa39e;
+      --bg: #f6fbf8; --white: #ffffff; --line: #e3efe9;
+      --mint-50: #f0faf5; --mint-100: #dcf5ea; --mint-200: #bdeedb; --mint-400: #5fd3a8; --mint-600: #1f9e7a; --mint-700: #167a5c;
+      --lemon: #f4f08a; --lemon-100: #fbf9cf; --lemon-600: #cdbf1c;
+      --danger: #d9534a; --ok: #1f9e7a;
+      --r-xl: 28px; --r-lg: 22px; --r-md: 14px;
+      --glow: 0 24px 60px -30px rgba(31, 158, 122, .35);
+      --ease: cubic-bezier(.22, .8, .24, 1);
+      --display: 'Unbounded', 'Onest', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Onest', system-ui, sans-serif; color: var(--ink); font-size: 14.5px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+      background: radial-gradient(700px 380px at 100% 0%, var(--mint-100), transparent 70%), radial-gradient(500px 320px at 30% 100%, var(--lemon-100), transparent 70%), var(--bg); background-attachment: fixed; }
+    button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+    input, select, textarea { font: inherit; color: inherit; }
+    a { color: var(--mint-700); text-decoration: none; }
+    h1, h2, h3 { margin: 0 0 .45em; letter-spacing: -.03em; line-height: 1.2; font-family: var(--display); font-weight: 500; }
+    h1 { font-size: 1.75rem; font-weight: 600; }
+    h3 { font-size: .98rem; }
+    .hidden { display: none !important; }
+    .muted { color: var(--ink-2); }
+    .small { font-size: .85rem; }
+
+    /* Раскладка: светлое «плавающее» меню */
+    .layout { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; }
+    .side { margin: 14px 0 14px 14px; background: rgba(255, 255, 255, .82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 22px 14px; position: sticky; top: 14px; height: calc(100vh - 28px); overflow-y: auto; display: flex; flex-direction: column; }
+    .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 600; font-size: 1rem; letter-spacing: -.03em; padding: 0 10px 26px; }
+    .brand i { font-style: normal; width: 34px; height: 34px; border-radius: 50%; color: transparent; background: radial-gradient(circle at 32% 30%, #fff 0 12%, transparent 13%), linear-gradient(140deg, var(--mint-200), var(--mint-400) 55%, var(--lemon)); flex: none; }
+    .side nav button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; border-radius: 999px; font-weight: 500; text-align: left; color: var(--ink-2); margin-bottom: 3px; transition: background .2s, color .2s; }
+    .side nav button:hover { background: var(--mint-50); color: var(--ink); }
+    .side nav button.on { background: var(--ink); color: var(--white); }
+    .side nav button .cnt { margin-left: auto; background: var(--lemon); color: var(--ink); border-radius: 99px; font-size: .72rem; padding: 1px 9px; font-weight: 700; }
+    .side .foot { margin-top: auto; padding: 16px 12px 4px; font-size: .85rem; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 6px; }
+    .side .foot a { color: var(--ink-2) !important; }
+    .side .foot a:hover { color: var(--ink) !important; }
+    .main { padding: 28px 34px 64px; min-width: 0; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .burger { display: none; }
+
+    /* Компоненты */
+    .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; }
+    .grid { display: grid; gap: 16px; }
+    .g4 { grid-template-columns: repeat(4, 1fr); }
+    .g3 { grid-template-columns: repeat(3, 1fr); }
+    .g2 { grid-template-columns: 1.4fr 1fr; }
+    .g2e { grid-template-columns: 1fr 1fr; }
+    .kpi { position: relative; overflow: hidden; }
+    .kpi::after { content: ''; position: absolute; width: 110px; height: 110px; border-radius: 50%; right: -40px; top: -40px; background: radial-gradient(circle, var(--mint-100), transparent 70%); }
+    .grid.g4 > .kpi:nth-child(4n+2)::after, .grid.g4 > .kpi:nth-child(4n+4)::after { background: radial-gradient(circle, var(--lemon-100), transparent 70%); }
+    .kpi .lbl { position: relative; z-index: 1; color: var(--ink-2); font-weight: 500; font-size: .85rem; }
+    .kpi .val { position: relative; z-index: 1; font-family: var(--display); font-size: 1.65rem; font-weight: 500; letter-spacing: -.045em; margin-top: 6px; }
+    .kpi .sub { position: relative; z-index: 1; font-size: .8rem; color: var(--ink-3); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 18px; border-radius: 999px; font-weight: 600; white-space: nowrap; transition: background .2s, transform .15s, box-shadow .2s; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--ink); color: var(--white); box-shadow: 0 10px 24px -14px rgba(18, 48, 43, .6); }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-ghost { background: var(--mint-100); color: var(--ink); }
+    .btn-ghost:hover { background: var(--mint-200); }
+    .btn-lemon { background: var(--lemon); color: var(--ink); }
+    .btn-outline { border: 1px solid var(--line); background: var(--white); }
+    .btn-outline:hover { border-color: var(--ink); }
+    .btn-danger { background: #fdeeec; color: var(--danger); }
+    .btn-sm { padding: 7px 13px; font-size: .82rem; }
+    .btn[disabled] { opacity: .5; pointer-events: none; }
+    .input { width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--white); outline: none; transition: border-color .2s, box-shadow .2s; }
+    .input:focus { border-color: var(--mint-400); box-shadow: 0 0 0 4px var(--mint-100); }
+    textarea.input { min-height: 84px; resize: vertical; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 13px; }
+    .field label { font-size: .8rem; font-weight: 500; color: var(--ink-2); }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: flex-end; padding: 14px; background: rgba(255, 255, 255, .7); border: 1px solid var(--line); border-radius: var(--r-lg); }
+    .filters .input { width: auto; min-width: 140px; }
+    .seg { display: inline-flex; background: var(--mint-50); border: 1px solid var(--line); border-radius: 999px; padding: 3px; flex-wrap: wrap; }
+    .seg button { padding: 7px 14px; border-radius: 999px; font-weight: 500; color: var(--ink-2); font-size: .85rem; transition: all .2s; }
+    .seg button.on { background: var(--ink); color: var(--white); }
+    .tbl-wrap { overflow-x: auto; background: var(--white); border: 1px solid var(--line); border-radius: var(--r-lg); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); padding: 14px 16px; border-bottom: 1px solid var(--line); white-space: nowrap; background: var(--mint-50); cursor: default; }
+    th[data-sort] { cursor: pointer; }
+    th[data-sort]:hover { color: var(--ink); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr.click { cursor: pointer; transition: background .15s; }
+    tbody tr.click:hover { background: var(--mint-50); }
+    .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .badge { display: inline-flex; padding: 4px 11px; border-radius: 99px; font-size: .75rem; font-weight: 600; background: var(--mint-50); white-space: nowrap; }
+    .s-new { background: var(--lemon-100); color: #7d7300; }
+    .s-assigned { background: #e8f0ff; color: #2c5bc4; }
+    .s-progress { background: #f0e9ff; color: #6c43cf; }
+    .s-done { background: var(--mint-100); color: var(--mint-700); }
+    .s-cancel { background: #fdeeec; color: var(--danger); }
+    .vip { background: var(--lemon); color: var(--ink); }
+    .empty { text-align: center; padding: 44px; color: var(--ink-3); }
+    .tabs { display: inline-flex; gap: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tabs button { padding: 9px 16px; font-weight: 500; color: var(--ink-2); border-radius: 999px; transition: all .2s; }
+    .tabs button.on { background: var(--ink); color: var(--white); }
+    .chart { width: 100%; height: auto; display: block; }
+    .chart text { font-family: Onest, sans-serif; font-size: 11px; fill: var(--ink-3); }
+    .chart .bar { fill: var(--mint-400); transition: fill .15s; }
+    .chart .bar:hover { fill: var(--mint-600); }
+    .hbar { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+    .hbar .name { width: 42%; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hbar .track { flex: 1; height: 12px; background: var(--mint-50); border-radius: 99px; overflow: hidden; }
+    .hbar .fill { height: 100%; background: linear-gradient(90deg, var(--mint-200), var(--mint-400) 60%, var(--lemon)); border-radius: 99px; transition: width .9s var(--ease); }
+    .hbar .v { min-width: 44px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .emp-card { display: flex; flex-direction: column; gap: 14px; }
+    .emp-top { display: flex; gap: 12px; align-items: center; }
+    .avatar { width: 50px; height: 50px; border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; background: linear-gradient(140deg, var(--mint-200), var(--lemon)); color: var(--ink); display: grid; place-items: center; font-family: var(--display); font-weight: 500; background-size: cover; background-position: center; flex: none; }
+    .emp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .emp-stats div { background: var(--mint-50); border-radius: var(--r-md); padding: 9px 11px; }
+    .emp-stats b { display: block; font-family: var(--display); font-weight: 500; font-size: 1.05rem; letter-spacing: -.03em; }
+    .sched-day { border-top: 1px dashed var(--line); padding: 8px 0; }
+    .sched-item { display: flex; gap: 10px; font-size: .85rem; padding: 4px 0; }
+    .sched-item b { width: 48px; flex: none; }
+    .toggle { position: relative; width: 40px; height: 24px; border-radius: 99px; background: var(--line); display: inline-block; vertical-align: middle; transition: background .2s; cursor: pointer; }
+    .toggle::after { content: ''; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--white); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); transition: transform .25s var(--ease); }
+    .toggle.on { background: var(--mint-400); }
+    .toggle.on::after { transform: translateX(16px); }
+
+    /* Вход */
+    .login { position: relative; overflow: hidden; min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+    .login .card { position: relative; z-index: 2; width: 100%; max-width: 400px; padding: 36px; border-radius: var(--r-xl); box-shadow: var(--glow); background: rgba(255, 255, 255, .85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .login h1 { font-size: 1.9rem; }
+    .bubble { position: absolute; border-radius: 50%; pointer-events: none; z-index: 1;
+      background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, .95) 0 7%, transparent 8%), radial-gradient(circle, transparent 56%, rgba(189, 238, 219, .6) 68%, rgba(244, 240, 138, .55) 80%, rgba(170, 205, 255, .4) 90%, rgba(255, 255, 255, .7) 98%);
+      animation: drift 10s ease-in-out infinite; }
+    @keyframes drift { 50% { transform: translate(14px, -26px); } }
+
+    /* Модалка и тост */
+    .modal-bg { position: fixed; inset: 0; background: rgba(18, 48, 43, .3); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; animation: fade .2s; }
+    .modal { background: var(--white); border-radius: var(--r-xl); width: 100%; max-width: 640px; padding: 30px; position: relative; animation: up .3s var(--ease); box-shadow: 0 40px 100px -30px rgba(18, 48, 43, .4); }
+    .modal.wide { max-width: 900px; }
+    .modal h3 { padding-right: 44px; }
+    .modal .x { position: absolute; top: 16px; right: 16px; width: 38px; height: 38px; border-radius: 50%; background: var(--mint-50); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 14px; font-size: .9rem; margin-bottom: 18px; padding: 16px 18px; background: var(--mint-50); border-radius: var(--r-lg); }
+    .kv span { color: var(--ink-2); }
+    .kv b { font-weight: 500; }
+    .accent-sum { color: var(--mint-700); font-weight: 700; }
+    .toast { position: fixed; right: 22px; bottom: 22px; background: var(--ink); color: var(--white); padding: 13px 20px; border-radius: 999px; z-index: 200; transform: translateY(120px); transition: transform .35s var(--ease), opacity .35s; font-weight: 500; max-width: 400px; opacity: 0; pointer-events: none; box-shadow: 0 20px 50px -20px rgba(18, 48, 43, .6); }
+    .toast.show { transform: none; opacity: 1; }
+    .toast.err { background: var(--danger); }
+    .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--mint-100); border-top-color: var(--mint-600); animation: spin .8s linear infinite; margin: 44px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes up { from { transform: translateY(22px); opacity: 0; } }
+    .view { animation: fade .3s; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+    @media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, 1fr); } .g3, .g2, .g2e { grid-template-columns: 1fr; } }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { position: fixed; z-index: 90; left: 0; top: 0; margin: 10px; width: 260px; height: calc(100vh - 20px); transform: translateX(calc(-100% - 20px)); transition: transform .3s var(--ease); background: var(--white); }
+      .side.open { transform: none; box-shadow: var(--glow); }
+      .main { padding: 18px 16px 64px; }
+      .burger { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--white); border: 1px solid var(--line); font-size: 1.1rem; }
+      .form-grid { grid-template-columns: 1fr; }
+      .kv { grid-template-columns: 1fr; }
+      .filters .input { flex: 1; }
+      h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Экран входа -->
+  <div class="login hidden" id="loginView">
+    <span class="bubble" style="width:140px;height:140px;left:12%;top:14%"></span>
+    <span class="bubble" style="width:70px;height:70px;right:18%;top:22%;animation-delay:-3s"></span>
+    <span class="bubble" style="width:200px;height:200px;right:8%;bottom:8%;animation-delay:-6s"></span>
+    <span class="bubble" style="width:44px;height:44px;left:24%;bottom:18%;animation-delay:-2s"></span>
+    <div class="card">
+      <div class="brand" style="padding:0 0 22px"><i>✦</i><span id="loginName">CRM</span></div>
+      <h1>Вход в CRM</h1>
+      <p class="muted">Введите пароль администратора.</p>
+      <div class="field"><label>Пароль</label><input class="input" type="password" id="pwd" autocomplete="current-password"></div>
+      <button class="btn btn-primary" style="width:100%" id="loginBtn">Войти</button>
+      <p class="small muted" style="margin-top:14px">Если ваш Google-аккаунт добавлен в настройку <b>adminEmails</b>, вход выполняется автоматически.</p>
+    </div>
+  </div>
+
+  <!-- Приложение -->
+  <div class="layout hidden" id="appView">
+    <aside class="side" id="side">
+      <div class="brand"><i>✦</i><span id="brandName"></span></div>
+      <nav id="menu">
+        <button data-v="dashboard">📊 Дашборд</button>
+        <button data-v="orders">🧾 Заказы <span class="cnt hidden" id="pendingCnt"></span></button>
+        <button data-v="clients">👥 Клиенты</button>
+        <button data-v="employees">🧑‍🔧 Сотрудники</button>
+        <button data-v="services">🧽 Услуги и цены</button>
+        <button data-v="marketing">🎯 Маркетинг</button>
+        <button data-v="reviews">⭐ Отзывы</button>
+        <button data-v="content">🖼️ Контент сайта</button>
+        <button data-v="reports">📈 Отчёты</button>
+        <button data-v="settings">⚙️ Настройки</button>
+      </nav>
+      <div class="foot"><a href="#" id="siteLink" target="_blank">Открыть сайт ↗</a><a href="#" id="logout">Выйти</a></div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px"><button class="burger" id="burger">☰</button><h1 id="pageTitle">Дашборд</h1></div>
+        <div id="topActions" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <div id="modalRoot"></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var BOOT = <?!= bootJson ?>;
+    var APP_URL = '<?= appUrl ?>';
+  </script>
+  <script>
+  (function () {
+    'use strict';
+
+    var CUR = BOOT.currency || 'сом';
+    var STATUSES = BOOT.statuses;
+    var token = BOOT.token || store('crm_token') || '';
+    var cache = {};   // кэш справочников (сотрудники, услуги)
+
+    // ---------------- Утилиты ----------------
+    function $(s, r) { return (r || document).querySelector(s); }
+    function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function money(v) { return Math.round(Number(v) || 0).toLocaleString('ru-RU') + ' ' + CUR; }
+    function short(v) { v = Number(v) || 0; return v >= 1e6 ? (v / 1e6).toFixed(1).replace('.0', '') + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(Math.round(v)); }
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+    function today(off) { var d = new Date(); d.setDate(d.getDate() + (off || 0)); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function fmtD(s) { if (!s) return '—'; var p = String(s).slice(0, 10).split('-'); return p[2] + '.' + p[1] + '.' + p[0].slice(2); }
+    function toast(t, err) { var el = $('#toast'); el.textContent = t; el.className = 'toast show' + (err ? ' err' : ''); clearTimeout(el._t); el._t = setTimeout(function () { el.className = 'toast'; }, 3500); }
+    function fail(e) { toast(e.message || String(e), true); }
+    var STATUS_CLASS = { 'В обработке': 's-new', 'Назначен': 's-assigned', 'Выполняется': 's-progress', 'Завершён': 's-done', 'Отменён': 's-cancel' };
+    function badge(st) { return '<span class="badge ' + (STATUS_CLASS[st] || '') + '">' + esc(st) + '</span>'; }
+    function stars(n) { n = Math.round(Number(n) || 0); return n ? '<span style="color:#f5b301">' + '★★★★★'.slice(0, n) + '</span>' : '—'; }
+    function spinner() { return '<div class="spinner"></div>'; }
+
+    /** Вызов серверной функции как Promise */
+    function run(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return new Promise(function (res, rej) {
+        var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) {
+          var msg = ((e && e.message) || String(e)).replace(/^(Error|Exception):\s*/, '');
+          if (msg.indexOf('AUTH:') >= 0) { logout(); msg = msg.replace(/^.*AUTH:\s*/, ''); }
+          rej(new Error(msg));
+        });
+        r[fn].apply(r, args);
+      });
+    }
+    function api(action, data) { return run('adminApi', token, action, data || {}); }
+
+    function modal(html, onMount, wide) {
+      var root = $('#modalRoot');
+      root.innerHTML = '<div class="modal-bg"><div class="modal' + (wide ? ' wide' : '') + '"><button class="x">✕</button>' + html + '</div></div>';
+      var bg = root.firstChild;
+      var close = function () { root.innerHTML = ''; };
+      bg.addEventListener('mousedown', function (e) { if (e.target === bg || e.target.classList.contains('x')) close(); });
+      if (onMount) onMount(bg.firstChild, close);
+      return close;
+    }
+    function busy(btn, on) { if (!btn) return; btn.disabled = on; if (on) { btn._t = btn.textContent; btn.textContent = '…'; } else if (btn._t) btn.textContent = btn._t; }
+
+    /** Сортировка таблиц по клику на заголовок */
+    function sortable(table, rows, renderRows) {
+      var state = { key: null, dir: 1 };
+      $$('th[data-sort]', table).forEach(function (th) {
+        th.onclick = function () {
+          var k = th.getAttribute('data-sort');
+          state.dir = state.key === k ? -state.dir : -1; state.key = k;
+          rows.sort(function (a, b) { var x = a[k], y = b[k]; if (x == null) x = ''; if (y == null) y = ''; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'ru')) * state.dir; });
+          renderRows(rows);
+        };
+      });
+    }
+
+    // =====================================================================
+    //  ГРАФИКИ НА SVG
+    // =====================================================================
+    function niceMax(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))); var n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; }
+
+    function barChart(data, opt) {
+      opt = opt || {};
+      var W = 640, H = opt.h || 240, L = 44, R = 8, T = 14, B = 28;
+      var max = niceMax(Math.max.apply(null, data.map(function (d) { return d.value; }).concat([0])));
+      var n = data.length || 1, cw = (W - L - R) / n, bw = Math.max(4, cw * .62);
+      var every = Math.ceil(n / 12);
+      var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '">';
+      for (var i = 0; i <= 4; i++) {
+        var y = T + (H - T - B) * (1 - i / 4);
+        s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="#e3efe9"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + (opt.money ? short(max * i / 4) : Math.round(max * i / 4 * 10) / 10) + '</text>';
+      }
+      data.forEach(function (d, i) {
+        var h = (H - T - B) * d.value / max, x = L + i * cw + (cw - bw) / 2, y = H - B - h;
+        s += '<rect class="bar" x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(0, h) + '" rx="' + Math.min(5, bw / 3) + '"' + (opt.color ? ' style="fill:' + opt.color + '"' : '') + '><title>' + esc(d.label) + ': ' + (opt.money ? money(d.value) : d.value) + '</title></rect>';
+        if (i % every === 0) s += '<text x="' + (L + i * cw + cw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(d.label) + '</text>';
+      });
+      return s + '</svg>';
+    }
+
+    function lineChart(data, opt) {
+      opt = opt || {};
+      var W = 640, H = opt.h || 240, L = 44, R = 10, T = 14, B = 28;
+      var max = niceMax(Math.max.apply(null, data.map(function (d) { return d.value; }).concat([0])));
+      var n = data.length, step = n > 1 ? (W - L - R) / (n - 1) : 0, every = Math.ceil(n / 10);
+      var pts = data.map(function (d, i) { return [L + i * step, T + (H - T - B) * (1 - d.value / max)]; });
+      var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5fd3a8" stop-opacity=".35"/><stop offset="1" stop-color="#f4f08a" stop-opacity="0"/></linearGradient></defs>';
+      for (var i = 0; i <= 4; i++) {
+        var y = T + (H - T - B) * (1 - i / 4);
+        s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="#e3efe9"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + short(max * i / 4) + '</text>';
+      }
+      if (pts.length) {
+        var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+        s += '<path d="' + line + ' L' + pts[pts.length - 1][0] + ' ' + (H - B) + ' L' + L + ' ' + (H - B) + 'Z" fill="url(#lg)"/>';
+        s += '<path d="' + line + '" fill="none" stroke="#12302b" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+        pts.forEach(function (p, i) {
+          s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (n > 20 ? 2.5 : 4) + '" fill="#f4f08a" stroke="#12302b" stroke-width="2"><title>' + esc(data[i].label) + ': ' + money(data[i].value) + '</title></circle>';
+          if (i % every === 0 || i === n - 1) s += '<text x="' + p[0] + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(data[i].label) + '</text>';
+        });
+      }
+      return s + '</svg>';
+    }
+
+    function hbars(data, fmt) {
+      var max = Math.max.apply(null, data.map(function (d) { return d.value; }).concat([1]));
+      if (!data.length) return '<div class="empty">Нет данных</div>';
+      return data.map(function (d) {
+        return '<div class="hbar"><div class="name" title="' + esc(d.label) + '">' + esc(d.label) + '</div><div class="track"><div class="fill" style="width:' + (d.value / max * 100) + '%"></div></div><div class="v">' + (fmt ? fmt(d.value) : d.value) + '</div></div>';
+      }).join('');
+    }
+
+    // =====================================================================
+    //  АВТОРИЗАЦИЯ И НАВИГАЦИЯ
+    // =====================================================================
+    function showLogin() { $('#appView').classList.add('hidden'); $('#loginView').classList.remove('hidden'); $('#pwd').focus(); }
+    function showApp() { $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden'); go(store('crm_view') || 'dashboard'); }
+    function logout() { token = ''; store('crm_token', null); showLogin(); }
+    function doLogin() {
+      var b = $('#loginBtn'); busy(b, true);
+      run('adminLogin', $('#pwd').value).then(function (r) { token = r.token; store('crm_token', token); $('#pwd').value = ''; showApp(); })
+        .catch(function (e) { fail(e); }).then(function () { busy(b, false); });
+    }
+    $('#loginBtn').onclick = doLogin;
+    $('#pwd').onkeydown = function (e) { if (e.key === 'Enter') doLogin(); };
+    $('#logout').onclick = function (e) { e.preventDefault(); logout(); };
+    $('#burger').onclick = function () { $('#side').classList.toggle('open'); };
+    $('#brandName').textContent = BOOT.companyName;
+    $('#loginName').textContent = BOOT.companyName;
+    $('#siteLink').href = APP_URL || '#';
+
+    var TITLES = { dashboard: 'Дашборд', orders: 'Заказы', clients: 'Клиенты', employees: 'Сотрудники', services: 'Услуги и цены', marketing: 'Маркетинг', reviews: 'Отзывы', content: 'Контент сайта', reports: 'Отчёты', settings: 'Настройки' };
+    var VIEWS = {};
+    function go(v) {
+      if (!VIEWS[v]) v = 'dashboard';
+      store('crm_view', v);
+      $$('#menu button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === v); });
+      $('#pageTitle').textContent = TITLES[v];
+      $('#topActions').innerHTML = '';
+      $('#content').innerHTML = spinner();
+      $('#side').classList.remove('open');
+      VIEWS[v]();
+    }
+    $('#menu').onclick = function (e) { var b = e.target.closest('button'); if (b) go(b.getAttribute('data-v')); };
+    function view(html) { $('#content').innerHTML = '<div class="view">' + html + '</div>'; }
+    function actions(html) { $('#topActions').innerHTML = html; }
+
+    /** Справочники для выпадающих списков */
+    function refs() {
+      if (cache.refs) return Promise.resolve(cache.refs);
+      return api('orders.list', { from: '9999-01-01' }).then(function (r) { cache.refs = { employees: r.employees, services: r.services }; return cache.refs; });
+    }
+
+    // =====================================================================
+    //  ДАШБОРД
+    // =====================================================================
+    VIEWS.dashboard = function () {
+      api('dashboard').then(function (d) {
+        var k = d.kpi;
+        $('#pendingCnt').textContent = k.pending; $('#pendingCnt').classList.toggle('hidden', !k.pending);
+        var kpi = function (l, v, sub) { return '<div class="card kpi"><div class="lbl">' + l + '</div><div class="val">' + v + '</div><div class="sub">' + (sub || '') + '</div></div>'; };
+        view('<div class="grid g4">' +
+          kpi('Выручка сегодня', money(k.revenueToday), 'завершённые заказы') + kpi('Выручка за 7 дней', money(k.revenueWeek)) +
+          kpi('Выручка за месяц', money(k.revenueMonth), 'с 1-го числа') + kpi('Средний чек', money(k.avgCheck)) +
+          kpi('Заказов за 30 дней', k.orders30) + kpi('Новых клиентов', k.newClients30, 'за 30 дней') +
+          kpi('Отменено', k.cancelled30, 'за 30 дней' + (k.orders30 ? ' · ' + Math.round(k.cancelled30 / k.orders30 * 100) + '%' : '')) +
+          kpi('Ждут обработки', '<a href="#" id="goPending">' + k.pending + '</a>', 'статус «В обработке»') + '</div>' +
+          '<div class="grid g2" style="margin-top:16px"><div class="card"><div class="card-head"><h3>Выручка</h3><div class="seg" id="revSeg"><button data-p="day" class="on">День</button><button data-p="week">Неделя</button><button data-p="month">Месяц</button></div></div><div id="revChart"></div></div>' +
+          '<div class="card"><h3>Топ-5 услуг</h3>' + hbars(d.topServices) + '</div></div>' +
+          '<div class="grid g2e" style="margin-top:16px"><div class="card"><h3>Загруженность: ближайшие 14 дней</h3><div class="small muted">Количество заказов в день</div>' + barChart(d.upcoming) + '</div>' +
+          '<div class="card"><h3>Загруженность по дням недели</h3><div class="small muted">За последние 90 дней</div>' + barChart(d.weekdayLoad, { color: '#bdeedb' }) + '</div></div>' +
+          '<div class="card" style="margin-top:16px"><h3>Заказы на сегодня (' + d.todayOrders.length + ')</h3>' + (d.todayOrders.length ? '<table><tbody>' + d.todayOrders.map(function (o) {
+            return '<tr class="click" data-id="' + esc(o.id) + '"><td><b>' + esc(o.time) + '</b></td><td>' + esc(o.serviceName) + '<div class="small muted">' + esc(o.address) + '</div></td><td>' + esc(o.employeeName || '—') + '</td><td>' + badge(o.status) + '</td><td class="num">' + money(o.total) + '</td></tr>';
+          }).join('') + '</tbody></table>' : '<div class="empty">На сегодня заказов нет</div>') + '</div>');
+        var drawRev = function (p) { $('#revChart').innerHTML = lineChart(d.revenue[p]); };
+        drawRev('day');
+        $('#revSeg').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; $$('#revSeg button').forEach(function (x) { x.classList.toggle('on', x === b); }); drawRev(b.getAttribute('data-p')); };
+        $('#goPending').onclick = function (e) { e.preventDefault(); ordersFilter = { status: 'В обработке' }; go('orders'); };
+        $$('tr[data-id]').forEach(function (tr) { tr.onclick = function () { openOrder(d.todayOrders.find(function (o) { return o.id === tr.getAttribute('data-id'); }), VIEWS.dashboard); }; });
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  ЗАКАЗЫ
+    // =====================================================================
+    var ordersFilter = {};
+    VIEWS.orders = function () {
+      actions('<button class="btn btn-outline" id="exportBtn">📤 Экспорт в Google Sheets</button>');
+      $('#exportBtn').onclick = exportOrders;
+      var f = ordersFilter;
+      api('orders.list', f).then(function (r) {
+        cache.refs = { employees: r.employees, services: r.services };
+        view('<div class="filters">' +
+          '<div class="field" style="margin:0"><label>Поиск</label><input class="input" id="fSearch" placeholder="ID, имя, телефон, адрес" value="' + esc(f.search || '') + '"></div>' +
+          '<div class="field" style="margin:0"><label>Статус</label><select class="input" id="fStatus"><option value="">Все</option>' + STATUSES.map(function (s) { return '<option' + (f.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field" style="margin:0"><label>С</label><input class="input" type="date" id="fFrom" value="' + esc(f.from || '') + '"></div>' +
+          '<div class="field" style="margin:0"><label>По</label><input class="input" type="date" id="fTo" value="' + esc(f.to || '') + '"></div>' +
+          '<div class="field" style="margin:0"><label>Сотрудник</label><select class="input" id="fEmp"><option value="">Все</option><option value="__none"' + (f.employeeId === '__none' ? ' selected' : '') + '>Не назначен</option>' + r.employees.map(function (e) { return '<option value="' + esc(e.id) + '"' + (f.employeeId === e.id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field" style="margin:0"><label>Услуга</label><select class="input" id="fSvc"><option value="">Все</option>' + r.services.map(function (s) { return '<option value="' + esc(s.id) + '"' + (f.serviceId === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select></div>' +
+          '<button class="btn btn-outline" id="fReset">Сбросить</button></div>' +
+          '<div class="small muted" style="margin-bottom:8px">Найдено: ' + r.orders.length + ' · сумма: ' + money(r.orders.filter(function (o) { return o.status !== 'Отменён'; }).reduce(function (a, o) { return a + Number(o.total || 0); }, 0)) + '</div>' +
+          '<div class="tbl-wrap"><table id="oTable"><thead><tr><th data-sort="id">ID</th><th data-sort="date">Дата</th><th data-sort="name">Клиент</th><th data-sort="serviceName">Услуга</th><th data-sort="employeeName">Сотрудник</th><th data-sort="status">Статус</th><th data-sort="total" class="num">Сумма</th></tr></thead><tbody></tbody></table></div>');
+        var draw = function (rows) {
+          $('#oTable tbody').innerHTML = rows.length ? rows.map(function (o) {
+            return '<tr class="click" data-id="' + esc(o.id) + '"><td><b>' + esc(o.id) + '</b></td><td>' + fmtD(o.date) + ' <span class="muted">' + esc(o.time) + '</span></td><td>' + esc(o.name) + '<div class="small muted">' + esc(o.phone) + '</div></td>' +
+              '<td>' + esc(o.serviceName) + '<div class="small muted">' + esc(o.propertyType) + ', ' + esc(o.rooms) + ' комн.' + (o.extrasText ? ' + ' + esc(o.extrasText) : '') + '</div></td><td>' + esc(o.employeeName || '—') + '</td><td>' + badge(o.status) + '</td><td class="num"><b>' + money(o.total) + '</b></td></tr>';
+          }).join('') : '<tr><td colspan="7" class="empty">Заказов не найдено</td></tr>';
+          $$('#oTable tbody tr[data-id]').forEach(function (tr) { tr.onclick = function () { openOrder(r.orders.find(function (o) { return o.id === tr.getAttribute('data-id'); }), VIEWS.orders); }; });
+        };
+        draw(r.orders);
+        sortable($('#oTable'), r.orders, draw);
+        var apply = function () {
+          ordersFilter = { search: $('#fSearch').value, status: $('#fStatus').value, from: $('#fFrom').value, to: $('#fTo').value, employeeId: $('#fEmp').value, serviceId: $('#fSvc').value };
+          VIEWS.orders();
+        };
+        ['fStatus', 'fFrom', 'fTo', 'fEmp', 'fSvc'].forEach(function (id) { $('#' + id).onchange = apply; });
+        $('#fSearch').onkeydown = function (e) { if (e.key === 'Enter') apply(); };
+        $('#fReset').onclick = function () { ordersFilter = {}; VIEWS.orders(); };
+      }).catch(fail);
+    };
+
+    function exportOrders() {
+      modal('<h3>Экспорт заказов в Google Sheets</h3><p class="muted">Будет создана новая таблица в вашем Google Диске.</p><div class="form-grid"><div class="field"><label>С</label><input class="input" type="date" id="exFrom" value="' + (ordersFilter.from || today(-30)) + '"></div><div class="field"><label>По</label><input class="input" type="date" id="exTo" value="' + (ordersFilter.to || today()) + '"></div></div><button class="btn btn-primary" id="exGo">Экспортировать</button><div id="exRes" style="margin-top:14px"></div>', function (m) {
+        $('#exGo', m).onclick = function () {
+          var b = this; busy(b, true);
+          api('orders.export', { from: $('#exFrom', m).value, to: $('#exTo', m).value }).then(function (r) {
+            busy(b, false);
+            $('#exRes', m).innerHTML = '<div class="badge s-done" style="padding:10px 14px">Готово: ' + r.count + ' заказов</div> <a href="' + esc(r.url) + '" target="_blank" class="btn btn-ghost btn-sm">Открыть таблицу ↗</a>';
+          }).catch(function (e) { busy(b, false); fail(e); });
+        };
+      });
+    }
+
+    /** Карточка заказа: статус, сотрудник, перенос, заметки */
+    function openOrder(o, after) {
+      refs().then(function (rf) {
+        var extras = [];
+        try { extras = JSON.parse(o.extras || '[]'); } catch (e) { }
+        modal('<h3 style="font-size:1.25rem">Заказ ' + esc(o.id) + ' ' + badge(o.status) + '</h3><p class="small muted">Создан ' + esc(o.createdAt) + (o.updatedAt ? ' · обновлён ' + esc(o.updatedAt) : '') + '</p>' +
+          '<div class="kv"><span>Клиент</span><b>' + esc(o.name) + ' · <a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · ' + esc(o.email) + '</b>' +
+          '<span>Услуга</span><b>' + esc(o.serviceName) + ' · ' + esc(o.propertyType) + ', ' + esc(o.rooms) + ' комн.</b>' +
+          '<span>Доп. услуги</span><b>' + (extras.length ? extras.map(function (x) { return esc(x.name) + ' ×' + x.qty + ' (' + money(x.amount) + ')'; }).join(', ') : '—') + '</b>' +
+          '<span>Детали</span><b>Этаж ' + esc(o.floor) + (o.elevator ? ', есть лифт' : ', без лифта') + (o.pets ? ', 🐾 животные' : '') + ', ≈ ' + esc(o.duration) + ' ч</b>' +
+          '<span>Комментарий</span><b>' + esc(o.comment || '—') + '</b>' +
+          '<span>Стоимость</span><b>' + money(o.subtotal) + (Number(o.discount) ? ' − скидка ' + money(o.discount) + ' (' + esc(o.promoCode || o.referralCode) + ')' : '') + (Number(o.certUsed) ? ' − сертификат ' + money(o.certUsed) : '') + (Number(o.bonusUsed) ? ' − бонусы ' + money(o.bonusUsed) : '') + ' = <span class="accent-sum">' + money(o.total) + '</span></b>' +
+          (o.rating ? '<span>Оценка клиента</span><b>' + stars(o.rating) + ' ' + esc(o.review || '') + '</b>' : '') + '</div>' +
+          '<div class="form-grid">' +
+          '<div class="field"><label>Статус</label><select class="input" id="oStatus">' + STATUSES.map(function (s) { return '<option' + (o.status === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label>Сотрудник</label><select class="input" id="oEmp"><option value="">— не назначен —</option>' + rf.employees.filter(function (e) { return e.active || e.id === String(o.employeeId); }).map(function (e) { return '<option value="' + esc(e.id) + '"' + (String(o.employeeId) === e.id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></div>' +
+          '<div class="field"><label>Дата</label><input class="input" type="date" id="oDate" value="' + esc(o.date) + '"></div>' +
+          '<div class="field"><label>Время</label><input class="input" type="time" id="oTime" value="' + esc(o.time) + '"></div>' +
+          '<div class="field full"><label>Адрес</label><input class="input" id="oAddr" value="' + esc(o.address) + '"></div>' +
+          '<div class="field"><label>Итоговая сумма</label><input class="input" type="number" id="oTotal" value="' + esc(o.total) + '"></div>' +
+          '<div class="field"><label>Длительность, ч</label><input class="input" type="number" step="0.5" id="oDur" value="' + esc(o.duration) + '"></div>' +
+          '<div class="field full" id="oReasonWrap"><label>Причина отмены</label><input class="input" id="oReason" value="' + esc(o.cancelReason) + '"></div>' +
+          '<div class="field full"><label>Внутренние заметки (клиент не видит)</label><textarea class="input" id="oNotes">' + esc(o.notes) + '</textarea></div></div>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><a class="btn btn-outline" href="https://wa.me/' + esc(String(o.phone).replace(/\D/g, '')) + '" target="_blank">WhatsApp</a><button class="btn btn-primary" id="oSave">Сохранить</button></div>',
+          function (m, close) {
+            var toggleReason = function () { $('#oReasonWrap', m).classList.toggle('hidden', $('#oStatus', m).value !== 'Отменён' && !o.cancelReason); };
+            $('#oStatus', m).onchange = toggleReason; toggleReason();
+            $('#oSave', m).onclick = function () {
+              var b = this;
+              var patch = { status: $('#oStatus', m).value, notes: $('#oNotes', m).value, cancelReason: $('#oReason', m).value, date: $('#oDate', m).value, time: $('#oTime', m).value, address: $('#oAddr', m).value, total: Number($('#oTotal', m).value), duration: Number($('#oDur', m).value) };
+              if ($('#oEmp', m).value !== String(o.employeeId || '')) patch.employeeId = $('#oEmp', m).value;
+              if (patch.status === 'Отменён' && !patch.cancelReason) { toast('Укажите причину отмены', true); return; }
+              busy(b, true);
+              api('orders.update', { id: o.id, patch: patch }).then(function () { close(); toast('Заказ сохранён'); after && after(); }).catch(function (e) { busy(b, false); fail(e); });
+            };
+          }, true);
+      }).catch(fail);
+    }
+
+    // =====================================================================
+    //  КЛИЕНТЫ
+    // =====================================================================
+    var clientsFilter = { mode: 'all', q: '', days: 60 };
+    VIEWS.clients = function () {
+      api('clients.list').then(function (list) {
+        cache.clients = list;
+        var f = clientsFilter;
+        view('<div class="filters"><div class="field" style="margin:0"><label>Поиск</label><input class="input" id="cQ" placeholder="Имя, телефон, email" value="' + esc(f.q) + '"></div>' +
+          '<div class="seg" id="cMode"><button data-m="all">Все</button><button data-m="vip">VIP</button><button data-m="sleep">Давно не заказывали</button><button data-m="new">Новые (30 дн.)</button></div>' +
+          '<div class="field" style="margin:0" id="cDaysWrap"><label>Дней без заказов</label><input class="input" type="number" id="cDays" value="' + f.days + '" style="min-width:90px;width:110px"></div></div>' +
+          '<div class="small muted" id="cCount" style="margin-bottom:8px"></div>' +
+          '<div class="tbl-wrap"><table id="cTable"><thead><tr><th data-sort="name">Клиент</th><th data-sort="ordersCount" class="num">Заказов</th><th data-sort="ltv" class="num">LTV</th><th data-sort="lastOrder">Последний заказ</th><th data-sort="daysSince" class="num">Дней назад</th><th data-sort="bonus" class="num">Бонусы</th><th>Пригласил</th></tr></thead><tbody></tbody></table></div>');
+        var draw = function (rows) {
+          $('#cCount').textContent = 'Клиентов: ' + rows.length + ' · суммарный LTV: ' + money(rows.reduce(function (a, c) { return a + c.ltv; }, 0));
+          $('#cTable tbody').innerHTML = rows.length ? rows.map(function (c) {
+            return '<tr class="click" data-id="' + esc(c.id) + '"><td><b>' + esc(c.name) + '</b> ' + (c.vip ? '<span class="badge vip">VIP</span>' : '') + '<div class="small muted">' + esc(c.phone) + ' · ' + esc(c.email) + '</div></td>' +
+              '<td class="num">' + c.ordersCount + (c.cancelledCount ? ' <span class="small muted">(−' + c.cancelledCount + ')</span>' : '') + '</td><td class="num"><b>' + money(c.ltv) + '</b></td><td>' + fmtD(c.lastOrder) + (c.nextOrder ? '<div class="small" style="color:var(--ok)">след.: ' + fmtD(c.nextOrder) + '</div>' : '') + '</td>' +
+              '<td class="num">' + (c.daysSince == null ? '—' : c.daysSince) + '</td><td class="num">' + money(c.bonus) + '</td><td>' + esc(c.referredByName || '—') + '</td></tr>';
+          }).join('') : '<tr><td colspan="7" class="empty">Нет клиентов</td></tr>';
+          $$('#cTable tbody tr[data-id]').forEach(function (tr) { tr.onclick = function () { openClient(list.find(function (c) { return c.id === tr.getAttribute('data-id'); })); }; });
+        };
+        var filtered = function () {
+          var q = f.q.toLowerCase(), d30 = today(-30);
+          var rows = list.filter(function (c) {
+            if (q && [c.name, c.phone, c.email].join(' ').toLowerCase().indexOf(q) < 0) return false;
+            if (f.mode === 'vip') return c.vip;
+            if (f.mode === 'sleep') return c.lastOrder && c.daysSince >= f.days && !c.nextOrder;
+            if (f.mode === 'new') return String(c.createdAt).slice(0, 10) >= d30;
+            return true;
+          }).sort(function (a, b) { return f.mode === 'sleep' ? b.ltv - a.ltv : b.ltv - a.ltv; });
+          $$('#cMode button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-m') === f.mode); });
+          $('#cDaysWrap').classList.toggle('hidden', f.mode !== 'sleep');
+          draw(rows);
+          sortable($('#cTable'), rows, draw);
+        };
+        $('#cMode').onclick = function (e) { var b = e.target.closest('button'); if (b) { f.mode = b.getAttribute('data-m'); filtered(); } };
+        $('#cQ').oninput = function () { f.q = this.value; filtered(); };
+        $('#cDays').oninput = function () { f.days = Number(this.value) || 0; filtered(); };
+        filtered();
+      }).catch(fail);
+    };
+
+    function openClient(c) {
+      modal('<h3 style="font-size:1.25rem">' + esc(c.name) + ' ' + (c.vip ? '<span class="badge vip">VIP</span>' : '') + '</h3>' +
+        '<div class="grid g3" style="margin:14px 0"><div class="card kpi"><div class="lbl">LTV</div><div class="val">' + money(c.ltv) + '</div></div><div class="card kpi"><div class="lbl">Заказов</div><div class="val">' + c.ordersCount + '</div><div class="sub">выполнено ' + c.doneCount + ', отмен ' + c.cancelledCount + '</div></div><div class="card kpi"><div class="lbl">Бонусы</div><div class="val">' + money(c.bonus) + '</div></div></div>' +
+        '<div class="form-grid"><div class="field"><label>Имя</label><input class="input" id="cName" value="' + esc(c.name) + '"></div><div class="field"><label>Телефон</label><input class="input" id="cPhone" value="' + esc(c.phone) + '"></div>' +
+        '<div class="field"><label>Email</label><input class="input" id="cEmail" value="' + esc(c.email) + '"></div><div class="field"><label>Адрес</label><input class="input" id="cAddr" value="' + esc(c.address) + '"></div>' +
+        '<div class="field full"><label>Заметки</label><textarea class="input" id="cNotes" placeholder="Предпочтения, особенности, ключи…">' + esc(c.notes) + '</textarea></div></div>' +
+        '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px"><label style="display:flex;gap:8px;align-items:center;font-weight:700;cursor:pointer"><span class="toggle' + (c.vip ? ' on' : '') + '" id="cVip"></span> VIP-клиент</label>' +
+        '<span class="small muted">Реф. код: <b>' + esc(c.referralCode) + '</b> · клиент с ' + fmtD(c.createdAt) + (c.referredByName ? ' · пригласил: ' + esc(c.referredByName) : '') + '</span></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between"><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-outline btn-sm" href="https://wa.me/' + esc(String(c.phone).replace(/\D/g, '')) + '" target="_blank">WhatsApp</a><a class="btn btn-outline btn-sm" href="mailto:' + esc(c.email) + '">Email</a><button class="btn btn-outline btn-sm" id="cBonus">± Бонусы</button></div><button class="btn btn-primary" id="cSave">Сохранить</button></div>' +
+        '<h3 style="margin-top:22px">История заказов</h3><div id="cOrders">' + spinner() + '</div>', function (m, close) {
+          var vip = !!c.vip;
+          $('#cVip', m).onclick = function () { vip = !vip; this.classList.toggle('on', vip); };
+          $('#cSave', m).onclick = function () {
+            var b = this; busy(b, true);
+            api('clients.update', { id: c.id, patch: { name: $('#cName', m).value, phone: $('#cPhone', m).value, email: $('#cEmail', m).value, address: $('#cAddr', m).value, notes: $('#cNotes', m).value, vip: vip } })
+              .then(function () { close(); toast('Клиент сохранён'); VIEWS.clients(); }).catch(function (e) { busy(b, false); fail(e); });
+          };
+          $('#cBonus', m).onclick = function () {
+            var v = prompt('Сколько бонусов начислить (отрицательное число — списать)?', '500');
+            if (!v || isNaN(Number(v))) return;
+            api('clients.bonus', { id: c.id, amount: Number(v), reason: 'Ручная корректировка' }).then(function (bal) { toast('Баланс: ' + money(bal)); }).catch(fail);
+          };
+          api('orders.list', { clientId: c.id }).then(function (r) {
+            $('#cOrders', m).innerHTML = r.orders.length ? '<div class="tbl-wrap"><table><tbody>' + r.orders.map(function (o) {
+              return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + fmtD(o.date) + ' ' + esc(o.time) + '</td><td>' + esc(o.serviceName) + '</td><td>' + badge(o.status) + '</td><td>' + stars(o.rating) + '</td><td class="num">' + money(o.total) + '</td></tr>';
+            }).join('') + '</tbody></table></div>' : '<div class="empty">Заказов нет</div>';
+          }).catch(fail);
+        }, true);
+    }
+
+    // =====================================================================
+    //  СОТРУДНИКИ
+    // =====================================================================
+    var EMP_FIELDS = [
+      { k: 'name', l: 'Имя' }, { k: 'role', l: 'Должность' }, { k: 'phone', l: 'Телефон' }, { k: 'photo', l: 'Фото (URL или ссылка Google Drive)' },
+      { k: 'workDays', l: 'Рабочие дни (1=Пн … 7=Вс, через запятую)' }, { k: 'workFrom', l: 'Начало смены', t: 'time' }, { k: 'workTo', l: 'Конец смены', t: 'time' },
+      { k: 'bio', l: 'О сотруднике', t: 'textarea', full: true }, { k: 'active', l: 'Активен', t: 'bool' }, { k: 'showOnSite', l: 'Показывать на сайте', t: 'bool' }
+    ];
+    var empRange = { from: today(), to: today(6) };
+    VIEWS.employees = function () {
+      actions('<button class="btn btn-primary" id="addEmp">+ Сотрудник</button>');
+      $('#addEmp').onclick = function () { editItem('employees', { active: true, showOnSite: true, workDays: '1,2,3,4,5', workFrom: '09:00', workTo: '18:00' }, EMP_FIELDS, true, VIEWS.employees); };
+      api('employees.list', empRange).then(function (list) {
+        cache.refs = null;
+        var wd = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        view('<div class="filters"><div class="field" style="margin:0"><label>Расписание с</label><input class="input" type="date" id="eFrom" value="' + empRange.from + '"></div><div class="field" style="margin:0"><label>по</label><input class="input" type="date" id="eTo" value="' + empRange.to + '"></div></div>' +
+          '<div class="grid g3">' + list.map(function (e) {
+            var byDay = {};
+            e.schedule.forEach(function (s) { (byDay[s.date] = byDay[s.date] || []).push(s); });
+            var days = String(e.workDays || '').split(/[,\s]+/).filter(String).map(function (d) { return wd[+d] || d; }).join(', ');
+            return '<div class="card emp-card"' + (e.active ? '' : ' style="opacity:.55"') + '><div class="emp-top"><div class="avatar"' + (e.photo ? ' style="background-image:url(\'' + esc(e.photo) + '\')"' : '') + '>' + (e.photo ? '' : esc(String(e.name).charAt(0))) + '</div>' +
+              '<div style="flex:1"><b>' + esc(e.name) + '</b>' + (e.active ? '' : ' <span class="badge">неактивен</span>') + '<div class="small muted">' + esc(e.role) + ' · ' + esc(e.phone) + '</div></div><button class="btn btn-outline btn-sm" data-edit="' + esc(e.id) + '">✎</button></div>' +
+              '<div class="emp-stats"><div><span class="small muted">Уборок</span><b>' + e.stats.done + '</b></div><div><span class="small muted">За месяц</span><b>' + e.stats.doneMonth + '</b></div><div><span class="small muted">Оценка</span><b>' + (e.stats.avgRating ? '★ ' + e.stats.avgRating : '—') + '</b></div>' +
+              '<div><span class="small muted">Выручка</span><b>' + short(e.stats.revenue) + '</b></div><div><span class="small muted">Часов</span><b>' + Math.round(e.stats.hours) + '</b></div><div><span class="small muted">Отзывов</span><b>' + e.stats.ratings + '</b></div></div>' +
+              '<div class="small muted">График: ' + esc(days || '—') + ', ' + esc(e.workFrom || '') + '–' + esc(e.workTo || '') + '</div>' +
+              '<div><b class="small">Закреплённые заказы (' + e.schedule.length + ')</b>' + (Object.keys(byDay).length ? Object.keys(byDay).sort().map(function (d) {
+                return '<div class="sched-day"><div class="small muted">' + fmtD(d) + '</div>' + byDay[d].map(function (s) { return '<div class="sched-item"><b>' + esc(s.time) + '</b><span>' + esc(s.serviceName) + ' · ' + esc(s.address) + ' <span class="muted">(' + s.duration + ' ч)</span></span></div>'; }).join('') + '</div>';
+              }).join('') : '<div class="small muted" style="padding:6px 0">Нет заказов в периоде</div>') + '</div></div>';
+          }).join('') + '</div>');
+        $('#eFrom').onchange = $('#eTo').onchange = function () { empRange = { from: $('#eFrom').value, to: $('#eTo').value }; VIEWS.employees(); };
+        $$('[data-edit]').forEach(function (b) { b.onclick = function () { editItem('employees', list.find(function (e) { return e.id === b.getAttribute('data-edit'); }), EMP_FIELDS, false, VIEWS.employees); }; });
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  УНИВЕРСАЛЬНЫЙ РЕДАКТОР ЗАПИСЕЙ (услуги, сотрудники, промокоды, отзывы, контент)
+    // =====================================================================
+    function editItem(table, item, fields, isNew, after, keyField) {
+      keyField = keyField || 'id';
+      var input = function (f) {
+        var v = item[f.k] == null ? '' : item[f.k];
+        var lock = !isNew && f.k === keyField ? ' disabled' : '';
+        if (f.t === 'bool') return '<label style="display:flex;gap:8px;align-items:center;font-weight:700;cursor:pointer;margin:8px 0 14px"><span class="toggle' + (v === true || v === 'TRUE' ? ' on' : '') + '" data-k="' + f.k + '"></span>' + esc(f.l) + '</label>';
+        if (f.t === 'textarea') return '<textarea class="input" data-k="' + f.k + '"' + lock + '>' + esc(v) + '</textarea>';
+        if (f.t === 'select') return '<select class="input" data-k="' + f.k + '"' + lock + '>' + f.o.map(function (o) { return '<option' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+        return '<input class="input" data-k="' + f.k + '" type="' + (f.t || 'text') + '"' + (f.t === 'number' ? ' step="any"' : '') + ' value="' + esc(v) + '"' + lock + '>';
+      };
+      modal('<h3 style="font-size:1.2rem">' + (isNew ? 'Новая запись' : 'Редактирование') + '</h3><div class="form-grid">' + fields.map(function (f) {
+        return f.t === 'bool' ? '<div class="' + (f.full ? 'full' : '') + '">' + input(f) + '</div>' : '<div class="field' + (f.full || f.t === 'textarea' ? ' full' : '') + '"><label>' + esc(f.l) + '</label>' + input(f) + (f.h ? '<span class="small muted">' + esc(f.h) + '</span>' : '') + '</div>';
+      }).join('') + '</div><div style="display:flex;gap:8px;justify-content:space-between;margin-top:8px">' + (isNew ? '<span></span>' : '<button class="btn btn-danger" id="delItem">Удалить</button>') + '<button class="btn btn-primary" id="saveItem">Сохранить</button></div>', function (m, close) {
+        $$('.toggle', m).forEach(function (t) { t.onclick = function () { t.classList.toggle('on'); }; });
+        $('#saveItem', m).onclick = function () {
+          var out = Object.assign({}, item);
+          $$('[data-k]', m).forEach(function (el) {
+            var k = el.getAttribute('data-k'), f = fields.find(function (x) { return x.k === k; });
+            out[k] = el.classList.contains('toggle') ? el.classList.contains('on') : f && f.t === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+          });
+          var b = this; busy(b, true);
+          api('crud.save', { table: table, item: out, isNew: isNew }).then(function () { close(); toast('Сохранено'); cache.refs = null; after && after(); }).catch(function (e) { busy(b, false); fail(e); });
+        };
+        var del = $('#delItem', m);
+        if (del) del.onclick = function () {
+          if (!confirm('Удалить запись без возможности восстановления?')) return;
+          api('crud.delete', { table: table, id: item[keyField] }).then(function () { close(); toast('Удалено'); cache.refs = null; after && after(); }).catch(fail);
+        };
+      }, true);
+    }
+
+    /** Простая таблица для CRUD-разделов */
+    function crudTable(rows, cols, onClick) {
+      if (!rows.length) return '<div class="card empty">Записей пока нет</div>';
+      var html = '<div class="tbl-wrap"><table><thead><tr>' + cols.map(function (c) { return '<th' + (c.num ? ' class="num"' : '') + '>' + esc(c.l) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        rows.map(function (r, i) { return '<tr class="click" data-i="' + i + '">' + cols.map(function (c) { return '<td' + (c.num ? ' class="num"' : '') + '>' + (c.f ? c.f(r) : esc(r[c.k])) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+      setTimeout(function () { $$('tr[data-i]').forEach(function (tr) { tr.onclick = function (e) { if (e.target.closest('[data-stop]')) return; onClick(rows[+tr.getAttribute('data-i')]); }; }); });
+      return html;
+    }
+    function yes(v) { return v === true || v === 'TRUE' ? '<span class="badge s-done">да</span>' : '<span class="badge">нет</span>'; }
+
+    // =====================================================================
+    //  УСЛУГИ И ЦЕНЫ
+    // =====================================================================
+    var SVC_FIELDS = [
+      { k: 'id', l: 'ID (пусто = авто)' }, { k: 'kind', l: 'Тип', t: 'select', o: ['Основная', 'Дополнительная'] },
+      { k: 'name', l: 'Название' }, { k: 'icon', l: 'Иконка (эмодзи)' },
+      { k: 'basePrice', l: 'Базовая цена / цена за единицу', t: 'number' }, { k: 'perRoom', l: 'Цена за комнату (для основных)', t: 'number' },
+      { k: 'baseHours', l: 'Базовое время, ч', t: 'number' }, { k: 'perRoomHours', l: 'Время на комнату, ч', t: 'number' },
+      { k: 'unit', l: 'Единица (для доп. услуг)' }, { k: 'sort', l: 'Порядок', t: 'number' },
+      { k: 'short', l: 'Краткое описание', full: true }, { k: 'description', l: 'Полное описание', t: 'textarea' },
+      { k: 'includes', l: 'Что входит (через ;)', t: 'textarea' }, { k: 'paidExtras', l: 'За доплату (через ;)', t: 'textarea' },
+      { k: 'excludes', l: 'Не входит (через ;)', t: 'textarea' }, { k: 'image', l: 'Изображение (URL)', full: true }, { k: 'active', l: 'Активна', t: 'bool' }
+    ];
+    VIEWS.services = function () {
+      actions('<button class="btn btn-primary" id="addSvc">+ Услуга</button>');
+      $('#addSvc').onclick = function () { editItem('services', { active: true, kind: 'Дополнительная', unit: 'шт', basePrice: 500, baseHours: 0.5 }, SVC_FIELDS, true, VIEWS.services); };
+      api('crud.list', { table: 'services' }).then(function (rows) {
+        rows.sort(function (a, b) { return (a.kind > b.kind ? 1 : a.kind < b.kind ? -1 : 0) * -1 || Number(a.sort) - Number(b.sort); });
+        var cols = [
+          { l: 'Услуга', f: function (r) { return esc(r.icon) + ' <b>' + esc(r.name) + '</b><div class="small muted">' + esc(r.short) + '</div>'; } },
+          { l: 'Тип', f: function (r) { return '<span class="badge ' + (r.kind === 'Основная' ? 's-assigned' : '') + '">' + esc(r.kind) + '</span>'; } },
+          { l: 'Цена', num: true, f: function (r) { return money(r.basePrice) + (r.kind === 'Основная' ? '<div class="small muted">+ ' + money(r.perRoom) + ' / комн.</div>' : '<div class="small muted">за ' + esc(r.unit) + '</div>'); } },
+          { l: 'Время', num: true, f: function (r) { return esc(r.baseHours) + ' ч' + (Number(r.perRoomHours) ? ' + ' + esc(r.perRoomHours) + '/комн.' : ''); } },
+          { l: 'Активна', f: function (r) { return yes(r.active); } }
+        ];
+        view('<p class="muted">Формула цены основной уборки: <b>(базовая + цена за комнату × комнат) × коэффициент помещения</b>. Коэффициенты, надбавки и минимальный заказ — в разделе «Настройки».</p>' +
+          crudTable(rows, cols, function (r) { editItem('services', r, SVC_FIELDS, false, VIEWS.services); }));
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  МАРКЕТИНГ: промокоды, рефералы, реактивация, сертификаты
+    // =====================================================================
+    var PROMO_FIELDS = [
+      { k: 'code', l: 'Код' }, { k: 'type', l: 'Тип скидки', t: 'select', o: ['%', 'сом'] }, { k: 'value', l: 'Значение', t: 'number' },
+      { k: 'minOrder', l: 'Мин. сумма заказа', t: 'number' }, { k: 'validFrom', l: 'Действует с', t: 'date' }, { k: 'validTo', l: 'Действует до', t: 'date' },
+      { k: 'maxUses', l: 'Лимит использований (0 = без лимита)', t: 'number' }, { k: 'used', l: 'Использован раз', t: 'number' },
+      { k: 'description', l: 'Описание', full: true }, { k: 'active', l: 'Активен', t: 'bool' }
+    ];
+    var CERT_FIELDS = [
+      { k: 'code', l: 'Код' }, { k: 'status', l: 'Статус', t: 'select', o: ['Ожидает оплаты', 'Активен', 'Использован', 'Аннулирован'] },
+      { k: 'amount', l: 'Номинал', t: 'number' }, { k: 'balance', l: 'Остаток', t: 'number' }, { k: 'validTo', l: 'Действует до', t: 'date' },
+      { k: 'buyerName', l: 'Покупатель' }, { k: 'buyerPhone', l: 'Телефон покупателя' }, { k: 'buyerEmail', l: 'Email покупателя' },
+      { k: 'recipientName', l: 'Получатель' }, { k: 'recipientEmail', l: 'Email получателя' }, { k: 'message', l: 'Поздравление', t: 'textarea' }
+    ];
+    var mkTab = 'promos';
+    VIEWS.marketing = function () {
+      view('<div class="tabs" id="mkTabs"><button data-t="promos">Промокоды</button><button data-t="referrals">Реферальная программа</button><button data-t="reactivation">Реактивация</button><button data-t="certs">Сертификаты</button></div><div id="mkBody">' + spinner() + '</div>');
+      $$('#mkTabs button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-t') === mkTab); });
+      $('#mkTabs').onclick = function (e) { var b = e.target.closest('button'); if (b) { mkTab = b.getAttribute('data-t'); VIEWS.marketing(); } };
+      MK[mkTab]();
+    };
+    var MK = {
+      promos: function () {
+        actions('<button class="btn btn-primary" id="addPromo">+ Промокод</button>');
+        $('#addPromo').onclick = function () { editItem('promos', { active: true, type: '%', value: 10, used: 0, maxUses: 0, minOrder: 0 }, PROMO_FIELDS, true, VIEWS.marketing, 'code'); };
+        api('crud.list', { table: 'promos' }).then(function (rows) {
+          $('#mkBody').innerHTML = crudTable(rows, [
+            { l: 'Код', f: function (r) { return '<b>' + esc(r.code) + '</b><div class="small muted">' + esc(r.description) + '</div>'; } },
+            { l: 'Скидка', f: function (r) { return r.type === '%' ? esc(r.value) + '%' : money(r.value); } },
+            { l: 'Мин. сумма', num: true, f: function (r) { return Number(r.minOrder) ? money(r.minOrder) : '—'; } },
+            { l: 'Срок', f: function (r) { return (r.validFrom ? fmtD(r.validFrom) : '…') + ' — ' + (r.validTo ? fmtD(r.validTo) : '∞'); } },
+            { l: 'Использований', num: true, f: function (r) { return esc(r.used || 0) + (Number(r.maxUses) ? ' / ' + esc(r.maxUses) : ''); } },
+            { l: 'Активен', f: function (r) { return yes(r.active); } }
+          ], function (r) { editItem('promos', r, PROMO_FIELDS, false, VIEWS.marketing, 'code'); });
+        }).catch(fail);
+      },
+      referrals: function () {
+        api('referrals').then(function (r) {
+          $('#mkBody').innerHTML = '<div class="grid g2"><div><h3>Кто кого привёл</h3>' + (r.rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>Пригласил</th><th>Друг</th><th>Дата</th><th class="num">Заказов друга</th><th class="num">LTV друга</th><th class="num">Бонус</th></tr></thead><tbody>' +
+            r.rows.map(function (x) { return '<tr><td><b>' + esc(x.referrerName) + '</b></td><td>' + esc(x.friendName) + '</td><td>' + fmtD(x.date) + '</td><td class="num">' + x.friendOrders + '</td><td class="num">' + money(x.friendLtv) + '</td><td class="num">' + (x.bonusPaid ? money(x.bonusPaid) : '<span class="badge s-new">ожидает</span>') + '</td></tr>'; }).join('') +
+            '</tbody></table></div>' : '<div class="card empty">Пока никто никого не пригласил</div>') + '</div>' +
+            '<div class="card"><h3>Лидеры по приглашениям</h3>' + hbars(r.leaders.slice(0, 10).map(function (l) { return { label: l.name + ' (' + l.converted + ' с заказом)', value: l.invited }; })) +
+            '<p class="small muted" style="margin-top:14px">Условия программы (скидка другу, бонус пригласившему) задаются в «Настройках»: referralDiscount, referralBonus.</p></div></div>';
+        }).catch(fail);
+      },
+      reactivation: function () {
+        api('clients.list').then(function (list) {
+          var days = Number(store('crm_react') || 60);
+          var draw = function () {
+            var rows = list.filter(function (c) { return c.lastOrder && c.daysSince >= days && !c.nextOrder; }).sort(function (a, b) { return b.ltv - a.ltv; });
+            $('#reList').innerHTML = rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>Клиент</th><th class="num">LTV</th><th class="num">Заказов</th><th>Последний</th><th class="num">Дней</th><th>Связаться</th></tr></thead><tbody>' + rows.map(function (c) {
+              var text = encodeURIComponent('Здравствуйте, ' + String(c.name).split(' ')[0] + '! Давно не виделись 🙂 Дарим скидку на следующую уборку по промокоду ');
+              return '<tr><td><b>' + esc(c.name) + '</b> ' + (c.vip ? '<span class="badge vip">VIP</span>' : '') + '<div class="small muted">' + esc(c.phone) + '</div></td><td class="num">' + money(c.ltv) + '</td><td class="num">' + c.ordersCount + '</td><td>' + fmtD(c.lastOrder) + '</td><td class="num"><b>' + c.daysSince + '</b></td>' +
+                '<td><a class="btn btn-ghost btn-sm" target="_blank" href="https://wa.me/' + esc(String(c.phone).replace(/\D/g, '')) + '?text=' + text + '">WhatsApp</a> <a class="btn btn-outline btn-sm" href="mailto:' + esc(c.email) + '?subject=' + encodeURIComponent('Скучаем по вам!') + '&body=' + text + '">Email</a></td></tr>';
+            }).join('') + '</tbody></table></div><p class="small muted">Потенциал реактивации: ' + rows.length + ' клиентов, их суммарный LTV ' + money(rows.reduce(function (a, c) { return a + c.ltv; }, 0)) + '.</p>' : '<div class="card empty">Нет клиентов для реактивации 🎉</div>';
+          };
+          $('#mkBody').innerHTML = '<div class="filters"><div class="field" style="margin:0"><label>Не заказывали более, дней</label><input class="input" type="number" id="reDays" value="' + days + '"></div><button class="btn btn-outline" id="reCsv">Скачать CSV</button></div><div id="reList"></div>';
+          $('#reDays').oninput = function () { days = Number(this.value) || 0; store('crm_react', days); draw(); };
+          $('#reCsv').onclick = function () {
+            var rows = list.filter(function (c) { return c.lastOrder && c.daysSince >= days && !c.nextOrder; });
+            var csv = '﻿Имя;Телефон;Email;LTV;Последний заказ;Дней\n' + rows.map(function (c) { return [c.name, c.phone, c.email, c.ltv, c.lastOrder, c.daysSince].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(';'); }).join('\n');
+            var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'reactivation.csv'; a.click();
+          };
+          draw();
+        }).catch(fail);
+      },
+      certs: function () {
+        actions('<button class="btn btn-primary" id="addCert">+ Сертификат</button>');
+        $('#addCert').onclick = function () {
+          var code = 'GIFT-' + Math.random().toString(36).slice(2, 6).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+          var d = new Date(); d.setFullYear(d.getFullYear() + 1);
+          editItem('certs', { code: code, status: 'Активен', amount: 3000, balance: 3000, validTo: d.toISOString().slice(0, 10) }, CERT_FIELDS, true, VIEWS.marketing, 'code');
+        };
+        api('crud.list', { table: 'certs' }).then(function (rows) {
+          rows.reverse();
+          var cls = { 'Ожидает оплаты': 's-new', 'Активен': 's-done', 'Использован': '', 'Аннулирован': 's-cancel' };
+          $('#mkBody').innerHTML = crudTable(rows, [
+            { l: 'Код', f: function (r) { return '<b>' + esc(r.code) + '</b><div class="small muted">' + esc(String(r.createdAt || '').slice(0, 10)) + '</div>'; } },
+            { l: 'Покупатель', f: function (r) { return esc(r.buyerName) + '<div class="small muted">' + esc(r.buyerPhone) + '</div>'; } },
+            { l: 'Получатель', f: function (r) { return esc(r.recipientName || '—'); } },
+            { l: 'Номинал / остаток', num: true, f: function (r) { return money(r.amount) + '<div class="small muted">остаток ' + money(r.balance) + '</div>'; } },
+            { l: 'Статус', f: function (r) { return '<span class="badge ' + (cls[r.status] || '') + '">' + esc(r.status) + '</span>' + (r.status === 'Ожидает оплаты' ? ' <button class="btn btn-primary btn-sm" data-stop data-act="' + esc(r.code) + '">Оплачен → активировать</button>' : ''); } }
+          ], function (r) { editItem('certs', r, CERT_FIELDS, false, VIEWS.marketing, 'code'); });
+          $$('[data-act]').forEach(function (b) {
+            b.onclick = function () { busy(b, true); api('certs.activate', { code: b.getAttribute('data-act') }).then(function () { toast('Сертификат активирован, письмо отправлено'); VIEWS.marketing(); }).catch(function (e) { busy(b, false); fail(e); }); };
+          });
+        }).catch(fail);
+      }
+    };
+
+    // =====================================================================
+    //  ОТЗЫВЫ
+    // =====================================================================
+    var REVIEW_FIELDS = [
+      { k: 'author', l: 'Автор' }, { k: 'rating', l: 'Оценка (1–5)', t: 'number' }, { k: 'date', l: 'Дата', t: 'date' },
+      { k: 'source', l: 'Источник', t: 'select', o: ['Google', 'Сайт', 'Яндекс', '2ГИС', 'Другое'] }, { k: 'avatar', l: 'Аватар (URL)', full: true },
+      { k: 'text', l: 'Текст', t: 'textarea' }, { k: 'published', l: 'Опубликован на сайте', t: 'bool' }
+    ];
+    VIEWS.reviews = function () {
+      actions('<button class="btn btn-primary" id="addRev">+ Добавить отзыв из Google</button>');
+      $('#addRev').onclick = function () { editItem('reviews', { source: 'Google', rating: 5, date: today(), published: true }, REVIEW_FIELDS, true, VIEWS.reviews); };
+      api('crud.list', { table: 'reviews' }).then(function (rows) {
+        rows.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+        var pending = rows.filter(function (r) { return !(r.published === true || r.published === 'TRUE'); }).length;
+        view('<p class="muted">Отзывы клиентов с сайта попадают сюда на модерацию. Отзывы из Google Maps добавляйте вручную (бесплатно, без API) — они появятся в карусели на главной.' + (pending ? ' <b>На модерации: ' + pending + '</b>' : '') + '</p>' +
+          crudTable(rows, [
+            { l: 'Дата', f: function (r) { return fmtD(r.date); } },
+            { l: 'Автор', f: function (r) { return '<b>' + esc(r.author) + '</b><div class="small muted">' + esc(r.source) + (r.orderId ? ' · ' + esc(r.orderId) : '') + '</div>'; } },
+            { l: 'Оценка', f: function (r) { return stars(r.rating); } },
+            { l: 'Текст', f: function (r) { return '<div style="max-width:420px">' + esc(r.text) + '</div>'; } },
+            { l: 'На сайте', f: function (r) { return '<span class="toggle' + (r.published === true || r.published === 'TRUE' ? ' on' : '') + '" data-stop data-pub="' + esc(r.id) + '"></span>'; } }
+          ], function (r) { editItem('reviews', r, REVIEW_FIELDS, false, VIEWS.reviews); }));
+        setTimeout(function () {
+          $$('[data-pub]').forEach(function (t) {
+            t.onclick = function () {
+              var r = rows.find(function (x) { return x.id === t.getAttribute('data-pub'); });
+              var on = !t.classList.contains('on'); t.classList.toggle('on', on);
+              api('crud.save', { table: 'reviews', item: Object.assign({}, r, { published: on }) }).then(function () { r.published = on; toast(on ? 'Опубликован' : 'Скрыт'); }).catch(function (e) { t.classList.toggle('on', !on); fail(e); });
+            };
+          });
+        });
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  КОНТЕНТ САЙТА: шаги, зоны, FAQ, галерея «до/после»
+    // =====================================================================
+    var SECTIONS = { step: 'Как мы работаем', faq: 'FAQ', zone: 'Зоны обслуживания', gallery: 'До и после' };
+    var CONTENT_FIELDS = [
+      { k: 'section', l: 'Раздел', t: 'select', o: Object.keys(SECTIONS) }, { k: 'sort', l: 'Порядок', t: 'number' },
+      { k: 'title', l: 'Заголовок / вопрос / район', full: true }, { k: 'text', l: 'Текст / ответ', t: 'textarea' },
+      { k: 'image', l: 'Фото «ДО» (URL или ссылка Google Drive)', full: true }, { k: 'image2', l: 'Фото «ПОСЛЕ» (URL или ссылка Google Drive)', full: true },
+      { k: 'active', l: 'Показывать', t: 'bool' }
+    ];
+    var ctTab = 'faq';
+    VIEWS.content = function () {
+      actions('<button class="btn btn-primary" id="addCt">+ Добавить</button>');
+      api('crud.list', { table: 'content' }).then(function (rows) {
+        view('<div class="tabs" id="ctTabs">' + Object.keys(SECTIONS).map(function (k) { return '<button data-t="' + k + '" class="' + (k === ctTab ? 'on' : '') + '">' + SECTIONS[k] + '</button>'; }).join('') + '</div><div id="ctBody"></div>' +
+          '<p class="small muted" style="margin-top:14px">Название, слоган, контакты, соцсети и счётчики редактируются в разделе «Настройки». Фото можно загрузить в Google Drive, открыть доступ «Все, у кого есть ссылка» и вставить ссылку.</p>');
+        var draw = function () {
+          var list = rows.filter(function (r) { return r.section === ctTab; }).sort(function (a, b) { return Number(a.sort) - Number(b.sort); });
+          $('#ctBody').innerHTML = crudTable(list, [
+            { l: '№', f: function (r) { return esc(r.sort); } },
+            { l: 'Заголовок', f: function (r) { return '<b>' + esc(r.title) + '</b>'; } },
+            { l: ctTab === 'gallery' ? 'Фото' : 'Текст', f: function (r) { return ctTab === 'gallery' ? (r.image ? '✅ до ' : '⚪ до ') + (r.image2 ? '✅ после' : '⚪ после') : '<div class="small muted" style="max-width:480px">' + esc(r.text) + '</div>'; } },
+            { l: 'Показ', f: function (r) { return yes(r.active); } }
+          ], function (r) { editItem('content', r, CONTENT_FIELDS, false, VIEWS.content); });
+        };
+        $('#ctTabs').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; ctTab = b.getAttribute('data-t'); $$('#ctTabs button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
+        $('#addCt').onclick = function () { editItem('content', { section: ctTab, active: true, sort: rows.length + 1 }, CONTENT_FIELDS, true, VIEWS.content); };
+        draw();
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  ОТЧЁТЫ
+    // =====================================================================
+    var repRange = { from: today(-89), to: today() };
+    VIEWS.reports = function () {
+      api('reports', repRange).then(function (r) {
+        var t = r.totals;
+        var kpi = function (l, v, s) { return '<div class="card kpi"><div class="lbl">' + l + '</div><div class="val">' + v + '</div><div class="sub">' + (s || '') + '</div></div>'; };
+        var groupTable = function (rows, first) {
+          return rows.length ? '<div class="tbl-wrap"><table><thead><tr><th>' + first + '</th><th class="num">Заказов</th><th class="num">Выручка</th><th class="num">Ср. чек</th><th class="num">Оценка</th></tr></thead><tbody>' +
+            rows.map(function (x) { return '<tr><td><b>' + esc(x.label) + '</b></td><td class="num">' + x.orders + '</td><td class="num">' + money(x.revenue) + '</td><td class="num">' + money(x.avgCheck) + '</td><td class="num">' + (x.avgRating ? '★ ' + x.avgRating : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">Нет данных</div>';
+        };
+        var granName = { day: 'по дням', week: 'по неделям', month: 'по месяцам' }[r.granularity];
+        view('<div class="filters"><div class="seg" id="rPreset"><button data-d="7">7 дней</button><button data-d="30">30 дней</button><button data-d="90">90 дней</button><button data-d="365">Год</button></div>' +
+          '<div class="field" style="margin:0"><label>С</label><input class="input" type="date" id="rFrom" value="' + r.from + '"></div><div class="field" style="margin:0"><label>По</label><input class="input" type="date" id="rTo" value="' + r.to + '"></div></div>' +
+          '<div class="grid g4">' + kpi('Выручка', money(t.revenue), t.done + ' завершённых') + kpi('Средний чек', money(t.avgCheck)) + kpi('Отмены', t.cancelled, t.cancelRate + '% от ' + t.orders + ' заказов') + kpi('Скидки', money(t.discounts), 'промокоды и рефералы') + '</div>' +
+          '<div class="card" style="margin-top:16px"><h3>Выручка ' + granName + '</h3>' + barChart(r.periods.map(function (p) { return { label: r.granularity === 'month' ? p.label.slice(5) + '.' + p.label.slice(2, 4) : fmtD(p.label).slice(0, 5), value: p.revenue }; }), { money: true }) + '</div>' +
+          '<div class="grid g2e" style="margin-top:16px"><div><h3>По услугам</h3>' + groupTable(r.byService, 'Услуга') + '</div><div><h3>По сотрудникам</h3>' + groupTable(r.byEmployee, 'Сотрудник') + '</div></div>' +
+          '<h2 style="margin-top:28px;font-size:1.2rem">Отчёт по отменам</h2><div class="grid g2e"><div class="card"><h3>Причины</h3>' + hbars(r.cancellations.reasons) + '<p class="small muted">Поздних отмен (менее чем за 24 ч): <b>' + r.cancellations.lateCount + '</b></p></div>' +
+          '<div class="card"><h3>Отмены по дням недели</h3>' + barChart(r.cancellations.byWeekday, { color: '#f2b3ab', h: 200 }) + '</div></div>' +
+          '<h2 style="margin-top:28px;font-size:1.2rem">Повторные заказы</h2><div class="grid g4">' +
+          kpi('Среднее время между заказами', r.repeat.avgGap != null ? r.repeat.avgGap + ' дн.' : '—', 'по всей истории') + kpi('Медиана', r.repeat.medianGap != null ? r.repeat.medianGap + ' дн.' : '—') +
+          kpi('Повторных клиентов', r.repeat.repeatClients, 'из ' + r.repeat.totalClients) + kpi('Доля повторных', r.repeat.totalClients ? Math.round(r.repeat.repeatClients / r.repeat.totalClients * 100) + '%' : '—') + '</div>' +
+          '<div class="grid g2e" style="margin-top:16px"><div class="card"><h3>Распределение интервалов</h3>' + barChart(r.repeat.distribution, { h: 200 }) + '</div>' +
+          '<div class="card"><h3>Самые постоянные клиенты</h3>' + (r.repeat.top.length ? '<table><tbody>' + r.repeat.top.map(function (x) { return '<tr><td><b>' + esc(x.name) + '</b></td><td class="num">' + x.orders + ' заказов</td><td class="num muted">каждые ~' + x.avgGap + ' дн.</td></tr>'; }).join('') + '</tbody></table>' : '<div class="empty">Нет данных</div>') + '</div></div>');
+        $('#rPreset').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; repRange = { from: today(-(Number(b.getAttribute('data-d')) - 1)), to: today() }; VIEWS.reports(); };
+        $('#rFrom').onchange = $('#rTo').onchange = function () { repRange = { from: $('#rFrom').value, to: $('#rTo').value }; VIEWS.reports(); };
+      }).catch(fail);
+    };
+
+    // =====================================================================
+    //  НАСТРОЙКИ
+    // =====================================================================
+    VIEWS.settings = function () {
+      api('settings.get').then(function (rows) {
+        view('<div class="grid g2"><div class="card"><div class="card-head"><h3>Параметры</h3><button class="btn btn-primary" id="sSave">Сохранить</button></div>' +
+          '<div class="form-grid">' + rows.map(function (r) {
+            return '<div class="field"><label title="' + esc(r.key) + '">' + esc(r.description || r.key) + ' <span class="muted" style="font-weight:500">(' + esc(r.key) + ')</span></label>' +
+              (String(r.value).length > 60 ? '<textarea class="input" data-key="' + esc(r.key) + '">' + esc(r.value) + '</textarea>' : '<input class="input" data-key="' + esc(r.key) + '" value="' + esc(r.value) + '">') + '</div>';
+          }).join('') + '</div></div>' +
+          '<div><div class="card"><h3>Смена пароля CRM</h3><div class="field"><label>Текущий пароль</label><input class="input" type="password" id="pCur"></div><div class="field"><label>Новый пароль (мин. 8 символов)</label><input class="input" type="password" id="pNew"></div><button class="btn btn-outline" id="pSave">Сменить пароль</button></div>' +
+          '<div class="card" style="margin-top:16px"><h3>Ссылки</h3><p class="small">Сайт: <a href="' + esc(APP_URL) + '" target="_blank">' + esc(APP_URL) + '</a></p><p class="small">CRM: <a href="' + esc(APP_URL) + '?page=admin" target="_blank">' + esc(APP_URL) + '?page=admin</a></p>' +
+          '<p class="small muted">Все данные хранятся в Google-таблице. Её можно редактировать напрямую — изменения сразу видны на сайте и в CRM.</p></div></div></div>');
+        $('#sSave').onclick = function () {
+          var vals = {}; $$('[data-key]').forEach(function (el) { vals[el.getAttribute('data-key')] = el.value; });
+          var b = this; busy(b, true);
+          api('settings.save', { values: vals }).then(function () { busy(b, false); toast('Настройки сохранены'); }).catch(function (e) { busy(b, false); fail(e); });
+        };
+        $('#pSave').onclick = function () {
+          api('password.change', { current: $('#pCur').value, next: $('#pNew').value }).then(function () { toast('Пароль изменён'); $('#pCur').value = $('#pNew').value = ''; }).catch(fail);
+        };
+      }).catch(fail);
+    };
+
+    // ---------------- Старт ----------------
+    if (token) { store('crm_token', token); showApp(); } else showLogin();
+  })();
+  </script>
+</body>
+</html>
